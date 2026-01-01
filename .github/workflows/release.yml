@@ -154,45 +154,16 @@ jobs:
           git commit -m "Update go-send to ${{ steps.version.outputs.version }}"
           git push
 
+
   aur-update:
     needs: goreleaser
     runs-on: ubuntu-latest
     container:
-      image: archlinux:latest
+      image: archlinux
       options: --privileged
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Install dependencies
-        run: pacman -Syu --noconfirm wget perl-digest-sha-pp git
-
-      - name: Update PKGBUILD
-        run: |
-          cd packaging/aur/go-send-bin
-          
-          # Update version
-          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.VERSION }}/" PKGBUILD
-          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
-          
-          # Download release assets to calculate sha256sums
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          wget -q "https://github.com/VinMeld/go-send/releases/download/v${VERSION}/go-send_${VERSION}_linux_amd64.tar.gz"
-          wget -q "https://github.com/VinMeld/go-send/releases/download/v${VERSION}/go-send_${VERSION}_linux_arm64.tar.gz"
-          
-          AMD64_SHA=$(shasum -a 256 "go-send_${VERSION}_linux_amd64.tar.gz" | awk '{print $1}')
-          ARM64_SHA=$(shasum -a 256 "go-send_${VERSION}_linux_arm64.tar.gz" | awk '{print $1}')
-          
-          # Update sha256sums in PKGBUILD
-          sed -i "s/sha256sums_x86_64=.*/sha256sums_x86_64=('$AMD64_SHA')/" PKGBUILD
-          sed -i "s/sha256sums_aarch64=.*/sha256sums_aarch64=('$ARM64_SHA')/" PKGBUILD
-
-      - name: Publish to AUR
-        uses: TheWisker/aur-update@master
+      - name: AUR Update
+        uses: TheWisker/aur-update@v1
         with:
           aur_key: ${{ secrets.AUR_SSH_KEY }}
-          aur_folder: packaging/aur
+          
