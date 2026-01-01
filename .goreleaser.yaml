@@ -61,9 +61,6 @@ nfpms:
     package_name: go-send
     builds:
       - client
-    contents:
-      - src: go-send
-        dst: /usr/bin/go-send
     formats:
       - deb
       - rpm
@@ -79,9 +76,6 @@ nfpms:
     package_name: go-send-server
     builds:
       - server
-    contents:
-      - src: go-send-server
-        dst: /usr/bin/go-send-server
     formats:
       - deb
       - rpm
