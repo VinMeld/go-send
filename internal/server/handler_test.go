@@ -85,12 +85,12 @@ func TestHandlerErrors(t *testing.T) {
 		t.Errorf("Expected 400 for bad json, got %d", w.Code)
 	}
 
-	// Test Get User - Missing Param
+	// Test Get User - Missing Param (Should list users)
 	req = httptest.NewRequest("GET", "/users", nil)
 	w = httptest.NewRecorder()
 	h.GetUser(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("Expected 400 for missing username, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200 for missing username (list users), got %d", w.Code)
 	}
 
 	// Test Upload File - Bad Body

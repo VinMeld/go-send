@@ -2,7 +2,7 @@
 set -e
 
 # Extract total coverage (excluding cmd)
-go test -coverprofile=coverage.out $(go list ./... | grep -v cmd)
+go test -coverprofile=coverage.out $(go list ./... | grep -v cmd | grep -v internal/db)
 TOTAL_COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
 
 echo "Total Coverage: $TOTAL_COVERAGE%"

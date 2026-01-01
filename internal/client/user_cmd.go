@@ -12,8 +12,9 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(configInitCmd)
-	rootCmd.AddCommand(configPathCmd)
+	rootCmd.AddCommand(configCmd)
+	configCmd.AddCommand(configInitCmd)
+	configCmd.AddCommand(configPathCmd)
 	rootCmd.AddCommand(setUserCmd)
 	rootCmd.AddCommand(setServerCmd)
 	rootCmd.AddCommand(addUserCmd)
@@ -36,8 +37,13 @@ var setServerCmd = &cobra.Command{
 	},
 }
 
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Manage configuration",
+}
+
 var configInitCmd = &cobra.Command{
-	Use:   "config init --user <username>",
+	Use:   "init",
 	Short: "Initialize configuration and generate keys",
 	Run: func(cmd *cobra.Command, args []string) {
 		username, _ := cmd.Flags().GetString("user")
@@ -88,7 +94,7 @@ var configInitCmd = &cobra.Command{
 }
 
 var configPathCmd = &cobra.Command{
-	Use:   "config path",
+	Use:   "path",
 	Short: "Show configuration file path",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println(cfgFile)
