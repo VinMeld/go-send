@@ -234,7 +234,7 @@ func TestListUsersServerCmd(t *testing.T) {
 	output, _ = runCmd(t, tmpDir, "delete-file", "file1")
 	// It will likely fail with 404 from mock server
 	if !strings.Contains(output, "Error") && !strings.Contains(output, "404") {
-		// If it succeeded (unexpectedly), that's fine too, but we expect some output.
+		t.Errorf("Expected error or 404 for delete-file, got: %s", output)
 	}
 }
 
