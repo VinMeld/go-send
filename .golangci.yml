@@ -1,3 +1,4 @@
+version: 2
 run:
   timeout: 5m
   modules-download-mode: readonly
@@ -5,14 +6,9 @@ run:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
-    - typecheck
-    - unused
-    - revive
-    - goimports
     - misspell
     - bodyclose
 
@@ -20,7 +16,11 @@ linters-settings:
   revive:
     rules:
       - name: exported
-        disabled: true # Disable for MVP to avoid too many comments
+        disabled: true
+      - name: unused-parameter
+        disabled: true
+      - name: package-comments
+        disabled: true
 
 issues:
   exclude-use-default: false

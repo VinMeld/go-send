@@ -41,7 +41,7 @@ func (m *MockS3Client) GetObject(ctx context.Context, params *s3.GetObjectInput,
 	return nil, io.EOF // Just some error
 }
 
-func (m *MockS3Client) DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+func (m *MockS3Client) DeleteObject(_ context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
 	delete(m.Objects, *params.Key)
 	return &s3.DeleteObjectOutput{}, nil
 }

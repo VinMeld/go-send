@@ -73,11 +73,12 @@ func NewServer(port string, storageDir string) (*Server, error) {
 	})
 
 	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
+		switch r.Method {
+		case http.MethodPost:
 			h.RegisterUser(w, r)
-		} else if r.Method == http.MethodGet {
+		case http.MethodGet:
 			h.GetUser(w, r)
-		} else {
+		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
@@ -99,13 +100,14 @@ func NewServer(port string, storageDir string) (*Server, error) {
 	})
 
 	mux.HandleFunc("/files", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
+		switch r.Method {
+		case http.MethodPost:
 			h.AuthMiddleware(h.UploadFile)(w, r)
-		} else if r.Method == http.MethodGet {
+		case http.MethodGet:
 			h.AuthMiddleware(h.ListFiles)(w, r)
-		} else if r.Method == http.MethodDelete {
+		case http.MethodDelete:
 			h.AuthMiddleware(h.DeleteFile)(w, r)
-		} else {
+		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
