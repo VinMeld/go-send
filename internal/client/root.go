@@ -35,6 +35,7 @@ func initConfig() {
 			fmt.Println("Error getting config path:", err)
 			os.Exit(1)
 		}
+		cfgFile = path // Set the global variable
 	}
 
 	cfg, err = LoadConfig(path)
