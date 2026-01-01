@@ -205,11 +205,9 @@ jobs:
           docker run --rm -v "$PWD:/pkg" archlinux:latest bash -c "
             pacman -Syu --noconfirm base-devel git
             useradd -m builder
+            # Change ownership FIRST, then configure git
             chown -R builder:builder /pkg
-            cd /pkg
-            # Fix git config permissions
-            git config --global --add safe.directory /pkg
-            su builder -c 'git config --global --add safe.directory /pkg && makepkg --printsrcinfo > .SRCINFO'
+            su builder -c 'cd /pkg && git config --global --add safe.directory /pkg && makepkg --printsrcinfo > .SRCINFO'
           "
           
           # Commit and push
