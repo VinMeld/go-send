@@ -18,21 +18,28 @@ if ! ssh -T aur@aur.archlinux.org help >/dev/null 2>&1; then
 fi
 
 # Variables
-PACKAGE_NAME="go-send-git"
+PACKAGE_NAME="${1:-go-send-git}"
+NEW_VERSION="$2"
 AUR_URL="ssh://aur@aur.archlinux.org/${PACKAGE_NAME}.git"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 AUR_DIR="$PROJECT_ROOT/packaging/aur"
 TEMP_DIR=$(mktemp -d)
 
+echo "Package Name: $PACKAGE_NAME"
 echo "Project Root: $PROJECT_ROOT"
 echo "AUR Directory: $AUR_DIR"
 echo "Temp Directory: $TEMP_DIR"
 
-# Ensure .SRCINFO exists
-if [ ! -f "$AUR_DIR/.SRCINFO" ]; then
-    echo "Generating .SRCINFO..."
-    cd "$AUR_DIR"
-    makepkg --printsrcinfo > .SRCINFO
+# Determine which PKGBUILD to use
+if [ "$PACKAGE_NAME" == "go-send-bin" ]; then
+    SOURCE_PKGBUILD="$AUR_DIR/PKGBUILD-bin"
+else
+    SOURCE_PKGBUILD="$AUR_DIR/PKGBUILD"
+fi
+
+if [ ! -f "$SOURCE_PKGBUILD" ]; then
+    echo -e "${RED}Error: PKGBUILD not found at $SOURCE_PKGBUILD${NC}"
+    exit 1
 fi
 
 # Clone AUR repo
@@ -53,10 +60,30 @@ else
     git checkout master
 fi
 
-# Copy files
-echo "Copying files..."
-cp "$AUR_DIR/PKGBUILD" .
-cp "$AUR_DIR/.SRCINFO" .
+# Copy PKGBUILD
+cp "$SOURCE_PKGBUILD" PKGBUILD
+
+# Update Version if provided
+if [ -n "$NEW_VERSION" ]; then
+    echo "Updating pkgver to $NEW_VERSION..."
+    sed -i "s/^pkgver=.*/pkgver=$NEW_VERSION/" PKGBUILD
+    sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+    
+    # Update checksums
+    echo "Updating checksums..."
+    if command -v updpkgsums >/dev/null 2>&1; then
+        updpkgsums
+    else
+        echo "updpkgsums not found, attempting to use makepkg -g..."
+        # This is a bit hacky, but better than nothing if updpkgsums is missing
+        # It appends new sums to the end. Ideally user should install pacman-contrib
+        makepkg -g >> PKGBUILD
+    fi
+fi
+
+# Generate .SRCINFO
+echo "Generating .SRCINFO..."
+makepkg --printsrcinfo > .SRCINFO
 
 # Check for changes
 if [ -z "$(git status --porcelain)" ]; then
@@ -68,10 +95,10 @@ fi
 # Commit and Push
 echo "Committing and pushing..."
 git add PKGBUILD .SRCINFO
-git commit -m "Update package: $(date +%Y-%m-%d)"
+git commit -m "Update package: ${NEW_VERSION:-$(date +%Y-%m-%d)}"
 git push origin master
 
-echo -e "${GREEN}Successfully submitted to AUR!${NC}"
+echo -e "${GREEN}Successfully submitted $PACKAGE_NAME to AUR!${NC}"
 
 # Cleanup
 rm -rf "$TEMP_DIR"

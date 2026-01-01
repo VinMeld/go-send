@@ -1,16 +1,11 @@
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
-before:
-  hooks:
-    - go mod tidy
+project_name: go-send
 
 builds:
   - id: client
     main: ./cmd/client
     binary: go-send
-    env:
-      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
@@ -24,8 +19,6 @@ builds:
   - id: server
     main: ./cmd/server
     binary: go-send-server
-    env:
-      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
@@ -37,55 +30,19 @@ builds:
       - -s -w
 
 archives:
-  - id: client
-    ids:
-      - client
-    name_template: "go-send_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        formats: ['zip']
-
-  - id: server
-    ids:
-      - server
-    name_template: "go-send-server_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        formats: ['zip']
+  - format: tar.gz
+    # go-send_1.0.0_linux_amd64.tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
 
 checksum:
   name_template: 'checksums.txt'
 
-nfpms:
-  - id: client
-    package_name: go-send
-    builds:
-      - client
-    formats:
-      - deb
-      - rpm
-      - apk
-      - archlinux
-    vendor: VinMeld
-    homepage: https://github.com/VinMeld/go-send
-    maintainer: VinMeld <vinmeld@example.com>
-    description: Secure file sharing with end-to-end encryption (Client).
-    license: GPL-3.0
-
-  - id: server
-    package_name: go-send-server
-    builds:
-      - server
-    formats:
-      - deb
-      - rpm
-      - apk
-      - archlinux
-    vendor: VinMeld
-    homepage: https://github.com/VinMeld/go-send
-    maintainer: VinMeld <vinmeld@example.com>
-    description: Secure file sharing with end-to-end encryption (Server).
-    license: GPL-3.0
+snapshot:
+  version_template: "{{ .Tag }}-next"
 
 changelog:
   sort: asc
@@ -93,4 +50,41 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
-      - '^ci:'
+
+nfpms:
+  - id: client-pkg
+    package_name: go-send
+    builds:
+      - client
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: VinMeld
+    homepage: https://github.com/VinMeld/go-send
+    maintainer: Vinay <vinaymeldrum@gmail.com>
+    description: Secure file transfer tool (Client)
+    license: GPLv3
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+
+  - id: server-pkg
+    package_name: go-send-server
+    builds:
+      - server
+    file_name_template: "{{ .ProjectName }}-server_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: VinMeld
+    homepage: https://github.com/VinMeld/go-send
+    maintainer: Vinay <vinaymeldrum@gmail.com>
+    description: Secure file transfer tool (Server)
+    license: GPLv3
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: ./packaging/systemd/go-send-server.service
+        dst: /usr/lib/systemd/system/go-send-server.service
+        file_info:
+          mode: 0644
