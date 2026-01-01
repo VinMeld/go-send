@@ -111,4 +111,36 @@ else
     exit 1
 fi
 
+
+
+echo "--- Scenario: Auto-Delete File ---"
+echo "This message will self-destruct" > secret.txt
+./go-send-client send-file bob secret.txt --auto-delete --config $ALICE_CONFIG
+
+# Get File ID
+SECRET_ID=$(./go-send-client list-files --config $BOB_CONFIG | grep "secret.txt" | awk '{print $2}' | tr -d '[]')
+echo "Secret File ID: $SECRET_ID"
+
+if [ -z "$SECRET_ID" ]; then
+    echo "Secret file not found!"
+    exit 1
+fi
+
+# Download (should succeed)
+./go-send-client download-file $SECRET_ID --config $BOB_CONFIG
+if [ ! -f "secret.txt" ]; then
+    echo "Secret file download failed"
+    exit 1
+fi
+
+# Check if deleted from server
+# List files again, should be empty or not contain secret.txt
+REMAINING=$(./go-send-client list-files --config $BOB_CONFIG | grep "secret.txt" || true)
+if [ -n "$REMAINING" ]; then
+    echo "FAILURE: Secret file was not auto-deleted!"
+    exit 1
+else
+    echo "SUCCESS: Secret file auto-deleted!"
+fi
+
 echo "Integration Test Passed!"

@@ -168,3 +168,61 @@ func TestUploadListFiles(t *testing.T) {
 		t.Errorf("Expected 200, got %d", w.Code)
 	}
 }
+
+func TestAutoDelete(t *testing.T) {
+	h, store, tmpDir := setupTestServer(t)
+	defer os.RemoveAll(tmpDir)
+
+	// Register User
+	user := models.User{Username: "bob", PublicKey: []byte("key")}
+	store.AddUser(user)
+
+	// Upload File with AutoDelete
+	meta := models.FileMetadata{
+		ID: "file1", Sender: "alice", Recipient: "bob", FileName: "secret.txt", AutoDelete: true,
+	}
+	reqBody := models.UploadRequest{
+		Metadata:         meta,
+		EncryptedContent: []byte("burn after reading"),
+	}
+	data, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest("POST", "/files", bytes.NewBuffer(data))
+	w := httptest.NewRecorder()
+	h.UploadFile(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("Expected 201, got %d", w.Code)
+	}
+
+	// List Files to get ID (though we set it manually above, server might overwrite? No, server uses UUID if not set, but we set it?
+	// Wait, handler.go:77 req.Metadata.ID = uuid.New().String() overwrites it!
+	// So we MUST list files to get the ID.
+
+	req = httptest.NewRequest("GET", "/files?recipient=bob", nil)
+	w = httptest.NewRecorder()
+	h.ListFiles(w, req)
+
+	var files []models.FileMetadata
+	json.NewDecoder(w.Body).Decode(&files)
+	if len(files) != 1 {
+		t.Fatalf("Expected 1 file, got %d", len(files))
+	}
+	fileID := files[0].ID
+
+	// Download File
+	req = httptest.NewRequest("GET", "/files/download?id="+fileID, nil)
+	w = httptest.NewRecorder()
+	h.DownloadFile(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", w.Code)
+	}
+
+	// Verify Deletion
+	if _, ok := store.GetFileMetadata(fileID); ok {
+		t.Error("File metadata should be deleted")
+	}
+	if _, err := store.GetFileContent(fileID); err == nil {
+		t.Error("File content should be deleted")
+	}
+}
