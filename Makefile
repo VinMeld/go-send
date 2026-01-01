@@ -6,11 +6,11 @@ build:
 
 # Run unit tests
 test:
-	GOTOOLCHAIN=go1.25.5+auto go test -v ./...
+	go test -v ./...
 
 # Run unit tests with coverage (excludes cmd packages)
 coverage:
-	GOTOOLCHAIN=go1.25.5+auto go test -v -coverprofile=coverage.out $$(go list ./... | grep -v cmd)
+	go test -v -coverprofile=coverage.out $$(go list ./... | grep -v cmd)
 	go tool cover -func=coverage.out
 
 # Run integration tests
