@@ -62,7 +62,7 @@ nfpms:
     builds:
       - client
     contents:
-      - src: ./go-send
+      - src: go-send
         dst: /usr/bin/go-send
     formats:
       - deb
@@ -72,7 +72,25 @@ nfpms:
     vendor: VinMeld
     homepage: https://github.com/VinMeld/go-send
     maintainer: VinMeld <vinmeld@example.com>
-    description: Secure file sharing with end-to-end encryption.
+    description: Secure file sharing with end-to-end encryption (Client).
+    license: GPL-3.0
+
+  - id: server
+    package_name: go-send-server
+    builds:
+      - server
+    contents:
+      - src: go-send-server
+        dst: /usr/bin/go-send-server
+    formats:
+      - deb
+      - rpm
+      - apk
+      - archlinux
+    vendor: VinMeld
+    homepage: https://github.com/VinMeld/go-send
+    maintainer: VinMeld <vinmeld@example.com>
+    description: Secure file sharing with end-to-end encryption (Server).
     license: GPL-3.0
 
 changelog:
