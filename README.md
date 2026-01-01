@@ -46,8 +46,8 @@ go mod tidy
 The server stores the encrypted files. Run this in a separate terminal or on a remote machine.
 
 ```bash
-go run cmd/server/main.go
-# Server listening on :8080
+go run cmd/server/main.go -port :9090
+# Server listening on :9090
 ```
 
 ### 2. Client Setup (Alice & Bob)
@@ -56,6 +56,18 @@ go run cmd/server/main.go
 ```bash
 go run cmd/client/main.go config init --user alice --config alice.json
 # Output: Public Key: <ALICE_PUB_KEY>
+```
+
+**Configure Server (Optional):**
+If the server is not on localhost:8080, set the URL:
+```bash
+go run cmd/client/main.go set-server http://localhost:9090 --config alice.json
+```
+
+**Check Connection:**
+```bash
+go run cmd/client/main.go ping --config alice.json
+# Output: Pong! Server is reachable
 ```
 
 **Initialize Bob:**
