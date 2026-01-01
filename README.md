@@ -41,6 +41,8 @@ yay -S go-send-bin
 Download the `go-send-server` binary from the [Releases](https://github.com/VinMeld/go-send/releases) page.
 
 **Docker:**
+```bash
+docker pull meldrum123454/go-send
 ```
 
 ### Server Configuration
