@@ -8,6 +8,11 @@ build:
 test:
 	go test -v ./...
 
+# Run unit tests with coverage (excludes cmd packages)
+coverage:
+	go test -v -coverprofile=coverage.out $$(go list ./... | grep -v cmd)
+	go tool cover -func=coverage.out
+
 # Run integration tests
 integration-test: build
 	./tests/integration/run.sh
