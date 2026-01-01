@@ -136,6 +136,11 @@ func (s *Storage) ListAllUsers(ctx context.Context) ([]models.User, error) {
 	return result, nil
 }
 
+// DeleteUser deletes a user from the database.
+func (s *Storage) DeleteUser(ctx context.Context, username string) error {
+	return s.Queries.DeleteUser(ctx, username)
+}
+
 // SaveFile saves a file and its metadata.
 func (s *Storage) SaveFile(ctx context.Context, metadata models.FileMetadata, content []byte) error {
 	// Save content to BlobStore first

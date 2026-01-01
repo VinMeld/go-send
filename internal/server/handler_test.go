@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/VinMeld/go-send/internal/models"
 )
@@ -325,5 +326,80 @@ func TestServeHTTP(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("ServeHTTP /users PUT failed, got %d", w.Code)
+	}
+}
+
+func TestDeleteUser(t *testing.T) {
+	h, store, tmpDir := setupTestServer(t)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	// Setup users
+	alice := models.User{
+		Username:          "alice",
+		IdentityPublicKey: make([]byte, 32),
+		ExchangePublicKey: make([]byte, 32),
+	}
+	bob := models.User{
+		Username:          "bob",
+		IdentityPublicKey: make([]byte, 32),
+		ExchangePublicKey: make([]byte, 32),
+	}
+
+	_ = store.AddUser(context.Background(), alice)
+	_ = store.AddUser(context.Background(), bob)
+
+	// Create sessions for both users
+	aliceToken := "alice-token"
+	bobToken := "bob-token"
+	_ = store.CreateSession(context.Background(), models.Session{
+		Token:     aliceToken,
+		Username:  "alice",
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	_ = store.CreateSession(context.Background(), models.Session{
+		Token:     bobToken,
+		Username:  "bob",
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// Test 1: Delete own account successfully
+	req := httptest.NewRequest("DELETE", "/users?username=alice", nil)
+	req.Header.Set("Authorization", "Bearer "+aliceToken)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200 for deleting own account, got %d", w.Code)
+	}
+
+	// Verify alice was deleted
+	_, ok := store.GetUser(context.Background(), "alice")
+	if ok {
+		t.Error("Alice should have been deleted")
+	}
+
+	// Test 2: Try to delete someone else's account (should fail)
+	req = httptest.NewRequest("DELETE", "/users?username=alice", nil)
+	req.Header.Set("Authorization", "Bearer "+bobToken)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for deleting another user, got %d", w.Code)
+	}
+
+	// Test 3: Delete without authentication
+	req = httptest.NewRequest("DELETE", "/users?username=bob", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated deletion, got %d", w.Code)
+	}
+
+	// Test 4: Delete without username
+	req = httptest.NewRequest("DELETE", "/users", nil)
+	req.Header.Set("Authorization", "Bearer "+bobToken)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for missing username, got %d", w.Code)
 	}
 }

@@ -16,6 +16,7 @@ type Querier interface {
 	DeleteChallenge(ctx context.Context, username string) error
 	DeleteFile(ctx context.Context, id string) error
 	DeleteSession(ctx context.Context, token string) error
+	DeleteUser(ctx context.Context, username string) error
 	GetChallenge(ctx context.Context, username string) (string, error)
 	GetFile(ctx context.Context, id string) (File, error)
 	GetSession(ctx context.Context, token string) (Session, error)

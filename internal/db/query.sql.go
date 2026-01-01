@@ -116,6 +116,16 @@ func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users
+WHERE username = ?
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, username string) error {
+	_, err := q.exec(ctx, q.deleteUserStmt, deleteUser, username)
+	return err
+}
+
 const getChallenge = `-- name: GetChallenge :one
 SELECT nonce FROM challenges
 WHERE username = ? LIMIT 1

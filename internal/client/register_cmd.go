@@ -85,5 +85,14 @@ var registerCmd = &cobra.Command{
 		}
 
 		fmt.Println("User registered successfully!")
+
+		// Automatically login after successful registration
+		fmt.Println("Logging in...")
+		if err := Login(); err != nil {
+			fmt.Printf("Warning: Auto-login failed: %v\n", err)
+			fmt.Println("Please run 'go-send login' manually.")
+			return
+		}
+		fmt.Println("Logged in successfully!")
 	},
 }

@@ -199,4 +199,25 @@ else
     echo "SUCCESS: File deleted by recipient!"
 fi
 
+echo "--- Scenario: User Deletion (Remote) ---"
+# Create a test user Charlie
+CHARLIE_CONFIG="$TEST_DIR/charlie_config.json"
+CHARLIE_OUTPUT=$(./go-send-client config init --user charlie --server "$SERVER_URL" --config "$CHARLIE_CONFIG")
+echo "$CHARLIE_OUTPUT"
+
+# Register and login Charlie
+./go-send-client register --token secret123 --config "$CHARLIE_CONFIG"
+./go-send-client login --config "$CHARLIE_CONFIG"
+
+# Delete Charlie's account from server
+./go-send-client remove-user charlie --remote --config "$CHARLIE_CONFIG"
+
+# Try to login again (should fail since account is deleted)
+if ./go-send-client login --config "$CHARLIE_CONFIG" 2>&1 | grep -i "error"; then
+    echo "SUCCESS: Charlie's account was deleted from server!"
+else
+    echo "FAILURE: Charlie can still login after deletion!"
+    exit 1
+fi
+
 echo "Integration Test Passed!"

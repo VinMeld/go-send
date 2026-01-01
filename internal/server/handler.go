@@ -90,6 +90,39 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(user)
 }
 
+// DeleteUser handles user deletion (authenticated).
+func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		http.Error(w, "username required", http.StatusBadRequest)
+		return
+	}
+
+	// Get authenticated user from context
+	currentUser, ok := r.Context().Value(userContextKey).(string)
+	if !ok {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Users can only delete their own account
+	if currentUser != username {
+		slog.Warn("unauthorized user deletion attempt", "current_user", currentUser, "target_user", username)
+		http.Error(w, "forbidden: can only delete your own account", http.StatusForbidden)
+		return
+	}
+
+	// Delete the user
+	if err := h.Storage.DeleteUser(r.Context(), username); err != nil {
+		slog.Error("failed to delete user", "username", username, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("user deleted", "username", username)
+	w.WriteHeader(http.StatusOK)
+}
+
 func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	var req models.UploadRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -213,6 +246,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.RegisterUser(w, r)
 		} else if r.Method == http.MethodGet {
 			h.GetUser(w, r)
+		} else if r.Method == http.MethodDelete {
+			h.AuthMiddleware(h.DeleteUser)(w, r)
 		} else {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}

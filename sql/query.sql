@@ -40,6 +40,10 @@ SELECT username, identity_public_key, exchange_public_key
 FROM users
 ORDER BY username;
 
+-- name: DeleteUser :exec
+DELETE FROM users
+WHERE username = ?;
+
 -- name: CreateChallenge :exec
 INSERT INTO challenges (username, nonce)
 VALUES (?, ?)

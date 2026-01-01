@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/VinMeld/go-send/internal/crypto"
@@ -193,20 +194,63 @@ var listUsersCmd = &cobra.Command{
 
 var removeUserCmd = &cobra.Command{
 	Use:   "remove-user <username>",
-	Short: "Remove a known user",
+	Short: "Remove a user (locally or from server with --remote)",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		username := args[0]
-		delete(cfg.Users, username)
-		if err := SaveConfigGlobal(); err != nil {
-			fmt.Println("Error saving config:", err)
-			return
+		remote, _ := cmd.Flags().GetBool("remote")
+
+		if remote {
+			// Delete from server
+			if cfg.ServerURL == "" {
+				fmt.Println("No server URL configured")
+				return
+			}
+
+			// Get auth header
+			authHeader, err := GetAuthHeader()
+			if err != nil {
+				fmt.Printf("Authentication error: %v\n", err)
+				return
+			}
+
+			// Send DELETE request
+			req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/users?username=%s", cfg.ServerURL, username), nil)
+			if err != nil {
+				fmt.Println("Error creating request:", err)
+				return
+			}
+			req.Header.Set("Authorization", authHeader)
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				fmt.Println("Error deleting user:", err)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				fmt.Printf("Server error: %s\n", string(body))
+				return
+			}
+
+			fmt.Printf("User %s deleted from server successfully!\n", username)
+		} else {
+			// Delete locally
+			delete(cfg.Users, username)
+			if err := SaveConfigGlobal(); err != nil {
+				fmt.Println("Error saving config:", err)
+				return
+			}
+			fmt.Printf("Removed user %s from local address book\n", username)
 		}
-		fmt.Printf("Removed user %s\n", username)
 	},
 }
 
 func init() {
 	configInitCmd.Flags().String("user", "", "Username to initialize")
 	configInitCmd.Flags().String("server", "", "Server URL")
+	removeUserCmd.Flags().Bool("remote", false, "Delete user from server (requires authentication)")
 }

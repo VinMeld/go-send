@@ -9,11 +9,17 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
-      - STORAGE_TYPE=local
-      - DATA_DIR=/data
+      - STORAGE_TYPE=s3
+      - AWS_BUCKET=your-bucket-name # Change this to your actual S3 bucket name
+      - AWS_REGION=us-east-1 # Change this to your bucket's region
+      # Pass AWS credentials from host
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       # Optional: Restrict registration with a token
-      # - REGISTRATION_TOKEN=your-secret-token
+      - REGISTRATION_TOKEN=${REGISTRATION_TOKEN:-your-secret-token}
     volumes:
+      # Mount AWS credentials directory (alternative to env vars)
+      # - ~/.aws:/root/.aws:ro
       - go-send-data:/data
     restart: unless-stopped
 
