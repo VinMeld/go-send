@@ -28,7 +28,11 @@ func TestConfig(t *testing.T) {
 
 	// Test SaveConfig
 	cfg.CurrentUsername = "alice"
-	cfg.Users["bob"] = models.User{Username: "bob", PublicKey: []byte("bob_key")}
+	cfg.Users["bob"] = models.User{
+		Username:          "bob",
+		IdentityPublicKey: []byte("bob_id_key"),
+		ExchangePublicKey: []byte("bob_ex_key"),
+	}
 
 	if err := SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig failed: %v", err)

@@ -1,21 +1,35 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/VinMeld/go-send/internal/models"
 	"github.com/google/uuid"
 )
 
+type contextKey string
+
+const (
+	userContextKey contextKey = "user"
+)
+
 type Handler struct {
-	Storage *Storage
+	Storage           *Storage
+	RegistrationToken string
 }
 
 func NewHandler(storage *Storage) *Handler {
 	return &Handler{Storage: storage}
+}
+
+// SetRegistrationToken sets the registration token for the handler.
+func (h *Handler) SetRegistrationToken(token string) {
+	h.RegistrationToken = token
 }
 
 func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
@@ -24,13 +38,22 @@ func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
+	if h.RegistrationToken != "" {
+		token := r.Header.Get("X-Registration-Token")
+		if token != h.RegistrationToken {
+			slog.Warn("invalid registration token", "token", token)
+			http.Error(w, "forbidden: invalid registration token", http.StatusForbidden)
+			return
+		}
+	}
+
 	var user models.User
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 		slog.Error("failed to decode user", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if user.Username == "" || len(user.PublicKey) == 0 {
+	if user.Username == "" || len(user.IdentityPublicKey) == 0 || len(user.ExchangePublicKey) == 0 {
 		http.Error(w, "invalid user", http.StatusBadRequest)
 		return
 	}
@@ -141,5 +164,37 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 	// Auto-delete after successful download if requested
 	if meta.AutoDelete {
 		_ = h.Storage.DeleteFile(id)
+	}
+}
+
+// AuthMiddleware protects routes by requiring a valid session token.
+func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "authorization header required", http.StatusUnauthorized)
+			return
+		}
+
+		// Expect "Bearer <token>"
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			http.Error(w, "invalid authorization format", http.StatusUnauthorized)
+			return
+		}
+
+		token := parts[1]
+		session, ok := h.Storage.GetSession(token)
+		if !ok || session.ExpiresAt.Before(time.Now()) {
+			if ok {
+				h.Storage.DeleteSession(token)
+			}
+			http.Error(w, "invalid or expired session", http.StatusUnauthorized)
+			return
+		}
+
+		// Add user to context
+		ctx := context.WithValue(r.Context(), userContextKey, session.Username)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

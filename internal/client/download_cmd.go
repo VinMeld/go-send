@@ -27,7 +27,21 @@ var downloadFileCmd = &cobra.Command{
 		}
 
 		// Fetch File
-		resp, err := http.Get(fmt.Sprintf("%s/files/download?id=%s", cfg.ServerURL, fileID))
+		authHeader, err := GetAuthHeader()
+		if err != nil {
+			fmt.Println("Authentication error:", err)
+			return
+		}
+
+		httpReq, err := http.NewRequest("GET", fmt.Sprintf("%s/files/download?id=%s", cfg.ServerURL, fileID), nil)
+		if err != nil {
+			fmt.Println("Error creating request:", err)
+			return
+		}
+		httpReq.Header.Set("Authorization", authHeader)
+
+		client := &http.Client{}
+		resp, err := client.Do(httpReq)
 		if err != nil {
 			fmt.Println("Error fetching file:", err)
 			return
@@ -47,9 +61,9 @@ var downloadFileCmd = &cobra.Command{
 
 		// Decrypt
 		// 1. Get Recipient Private Key
-		privKeyBytes, ok := cfg.PrivateKeys[cfg.CurrentUsername]
+		privKeyBytes, ok := cfg.ExchangePrivateKeys[cfg.CurrentUsername]
 		if !ok {
-			fmt.Println("Private key not found for current user")
+			fmt.Println("Exchange private key not found for current user")
 			return
 		}
 		var recipientPriv [32]byte
@@ -72,7 +86,6 @@ var downloadFileCmd = &cobra.Command{
 
 		// Save to Disk
 		outputFile := req.Metadata.FileName
-		// Prevent overwriting? For now, just write.
 		if err := os.WriteFile(outputFile, decrypted, 0644); err != nil {
 			fmt.Println("Error saving file:", err)
 			return

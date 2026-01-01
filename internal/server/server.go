@@ -12,10 +12,11 @@ import (
 
 // Server represents the HTTP server.
 type Server struct {
-	Port    string
-	Storage *Storage
-	Handler *Handler
-	Server  *http.Server
+	Port              string
+	Storage           *Storage
+	Handler           *Handler
+	Server            *http.Server
+	RegistrationToken string
 }
 
 // NewServer initializes a new Server.
@@ -57,6 +58,10 @@ func NewServer(port string, storageDir string) (*Server, error) {
 	}
 
 	h := NewHandler(store)
+	if token := os.Getenv("REGISTRATION_TOKEN"); token != "" {
+		h.SetRegistrationToken(token)
+		slog.Info("Registration token enabled")
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -77,11 +82,29 @@ func NewServer(port string, storageDir string) (*Server, error) {
 		}
 	})
 
+	mux.HandleFunc("/auth/challenge", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			h.HandleGetChallenge(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/auth/login", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			h.HandleLogin(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	mux.HandleFunc("/files", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
-			h.UploadFile(w, r)
+			h.AuthMiddleware(h.UploadFile)(w, r)
 		} else if r.Method == http.MethodGet {
-			h.ListFiles(w, r)
+			h.AuthMiddleware(h.ListFiles)(w, r)
+		} else if r.Method == http.MethodDelete {
+			h.AuthMiddleware(h.DeleteFile)(w, r)
 		} else {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -89,7 +112,7 @@ func NewServer(port string, storageDir string) (*Server, error) {
 
 	mux.HandleFunc("/files/download", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			h.DownloadFile(w, r)
+			h.AuthMiddleware(h.DownloadFile)(w, r)
 		} else {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -104,10 +127,11 @@ func NewServer(port string, storageDir string) (*Server, error) {
 	}
 
 	return &Server{
-		Port:    port,
-		Storage: store,
-		Handler: h,
-		Server:  &http.Server{Addr: port, Handler: mux},
+		Port:              port,
+		Storage:           store,
+		Handler:           h,
+		Server:            &http.Server{Addr: port, Handler: mux},
+		RegistrationToken: os.Getenv("REGISTRATION_TOKEN"),
 	}, nil
 }
 

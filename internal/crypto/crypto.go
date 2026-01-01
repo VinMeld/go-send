@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
 	"io"
@@ -8,19 +9,44 @@ import (
 	"golang.org/x/crypto/nacl/box"
 )
 
-// KeyPair represents a public/private key pair.
-type KeyPair struct {
+// IdentityKeyPair represents an Ed25519 key pair for signing.
+type IdentityKeyPair struct {
+	Public  ed25519.PublicKey
+	Private ed25519.PrivateKey
+}
+
+// GenerateIdentityKeyPair generates a new Ed25519 key pair.
+func GenerateIdentityKeyPair() (*IdentityKeyPair, error) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	return &IdentityKeyPair{Public: pub, Private: priv}, nil
+}
+
+// ExchangeKeyPair represents an X25519 key pair for encryption.
+type ExchangeKeyPair struct {
 	Public  *[32]byte
 	Private *[32]byte
 }
 
-// GenerateKeyPair generates a new random key pair for Box.
-func GenerateKeyPair() (*KeyPair, error) {
+// GenerateExchangeKeyPair generates a new X25519 key pair for Box.
+func GenerateExchangeKeyPair() (*ExchangeKeyPair, error) {
 	pub, priv, err := box.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, err
 	}
-	return &KeyPair{Public: pub, Private: priv}, nil
+	return &ExchangeKeyPair{Public: pub, Private: priv}, nil
+}
+
+// Sign signs a message with an Ed25519 private key.
+func Sign(privateKey ed25519.PrivateKey, message []byte) []byte {
+	return ed25519.Sign(privateKey, message)
+}
+
+// Verify verifies a signature with an Ed25519 public key.
+func Verify(publicKey ed25519.PublicKey, message []byte, signature []byte) bool {
+	return ed25519.Verify(publicKey, message, signature)
 }
 
 // Encrypt encrypts a message for a recipient using their public key and the sender's private key.

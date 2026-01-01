@@ -23,7 +23,21 @@ var listFilesCmd = &cobra.Command{
 			return
 		}
 
-		resp, err := http.Get(fmt.Sprintf("%s/files?recipient=%s", cfg.ServerURL, cfg.CurrentUsername))
+		authHeader, err := GetAuthHeader()
+		if err != nil {
+			fmt.Println("Authentication error:", err)
+			return
+		}
+
+		httpReq, err := http.NewRequest("GET", fmt.Sprintf("%s/files?recipient=%s", cfg.ServerURL, cfg.CurrentUsername), nil)
+		if err != nil {
+			fmt.Println("Error creating request:", err)
+			return
+		}
+		httpReq.Header.Set("Authorization", authHeader)
+
+		client := &http.Client{}
+		resp, err := client.Do(httpReq)
 		if err != nil {
 			fmt.Println("Error fetching files:", err)
 			return

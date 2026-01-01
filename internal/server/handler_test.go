@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -47,7 +48,11 @@ func TestRegisterUserHandler(t *testing.T) {
 	h, _, tmpDir := setupTestServer(t)
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	user := models.User{Username: "alice", PublicKey: []byte("key")}
+	user := models.User{
+		Username:          "alice",
+		IdentityPublicKey: make([]byte, 32),
+		ExchangePublicKey: make([]byte, 32),
+	}
 	data, _ := json.Marshal(user)
 	req := httptest.NewRequest("POST", "/users", bytes.NewBuffer(data))
 	w := httptest.NewRecorder()
@@ -72,20 +77,9 @@ func TestHandlerErrors(t *testing.T) {
 	h, _, tmpDir := setupTestServer(t)
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Test Register User - Bad Method
-	req := httptest.NewRequest("GET", "/users", nil)
-	w := httptest.NewRecorder()
-	h.RegisterUser(w, req)
-	// Note: Handler doesn't check method, usually caller/mux does.
-	// But if we call directly, it proceeds.
-	// Wait, RegisterUser expects body. GET with no body might fail decoding.
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("Expected 400 for bad method/body, got %d", w.Code)
-	}
-
 	// Test Register User - Bad Body
-	req = httptest.NewRequest("POST", "/users", bytes.NewBuffer([]byte("bad json")))
-	w = httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/users", bytes.NewBuffer([]byte("bad json")))
+	w := httptest.NewRecorder()
 	h.RegisterUser(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 for bad json, got %d", w.Code)
@@ -121,7 +115,11 @@ func TestUploadListFiles(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Register User
-	user := models.User{Username: "bob", PublicKey: []byte("key")}
+	user := models.User{
+		Username:          "bob",
+		IdentityPublicKey: make([]byte, 32),
+		ExchangePublicKey: make([]byte, 32),
+	}
 	_ = store.AddUser(user)
 
 	// Upload File
@@ -174,7 +172,11 @@ func TestAutoDelete(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Register User
-	user := models.User{Username: "bob", PublicKey: []byte("key")}
+	user := models.User{
+		Username:          "bob",
+		IdentityPublicKey: make([]byte, 32),
+		ExchangePublicKey: make([]byte, 32),
+	}
 	_ = store.AddUser(user)
 
 	// Upload File with AutoDelete
@@ -193,10 +195,6 @@ func TestAutoDelete(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("Expected 201, got %d", w.Code)
 	}
-
-	// List Files to get ID (though we set it manually above, server might overwrite? No, server uses UUID if not set, but we set it?
-	// Wait, handler.go:77 req.Metadata.ID = uuid.New().String() overwrites it!
-	// So we MUST list files to get the ID.
 
 	req = httptest.NewRequest("GET", "/files?recipient=bob", nil)
 	w = httptest.NewRecorder()
@@ -224,5 +222,59 @@ func TestAutoDelete(t *testing.T) {
 	}
 	if _, err := store.GetFileContent(fileID); err == nil {
 		t.Error("File content should be deleted")
+	}
+}
+
+func TestDeleteFile(t *testing.T) {
+	h, store, tmpDir := setupTestServer(t)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	// Setup: Alice sends file to Bob
+	userAlice := models.User{Username: "alice", IdentityPublicKey: make([]byte, 32), ExchangePublicKey: make([]byte, 32)}
+	userBob := models.User{Username: "bob", IdentityPublicKey: make([]byte, 32), ExchangePublicKey: make([]byte, 32)}
+	_ = store.AddUser(userAlice)
+	_ = store.AddUser(userBob)
+
+	meta := models.FileMetadata{ID: "file1", Sender: "alice", Recipient: "bob", FileName: "test.txt"}
+	_ = store.SaveFile(meta, []byte("content"))
+
+	// Helper to make authenticated request
+	makeDeleteReq := func(user string, fileID string) *http.Response {
+		req := httptest.NewRequest("DELETE", "/files?id="+fileID, nil)
+		// Inject user into context (simulating AuthMiddleware)
+		ctx := context.WithValue(req.Context(), userContextKey, user)
+		w := httptest.NewRecorder()
+		h.DeleteFile(w, req.WithContext(ctx))
+		return w.Result()
+	}
+
+	// Test 1: Sender can delete
+	resp := makeDeleteReq("alice", "file1")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Sender should be able to delete, got %d", resp.StatusCode)
+	}
+
+	// Re-create file for next test
+	_ = store.SaveFile(meta, []byte("content"))
+
+	// Test 2: Recipient can delete
+	resp = makeDeleteReq("bob", "file1")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Recipient should be able to delete, got %d", resp.StatusCode)
+	}
+
+	// Re-create file
+	_ = store.SaveFile(meta, []byte("content"))
+
+	// Test 3: Unauthorized user cannot delete
+	resp = makeDeleteReq("eve", "file1")
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("Unauthorized user should get 403, got %d", resp.StatusCode)
+	}
+
+	// Test 4: File not found
+	resp = makeDeleteReq("alice", "unknown")
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("Unknown file should get 404, got %d", resp.StatusCode)
 	}
 }

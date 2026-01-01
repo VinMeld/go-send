@@ -34,11 +34,8 @@ func TestTransferCommands(t *testing.T) {
 			}
 		}
 		if r.URL.Path == "/files/download" {
-			// Return encrypted content
-			// For simplicity, just return dummy content.
-			// The client expects JSON with Metadata and EncryptedContent
 			resp := models.UploadRequest{
-				Metadata:         models.FileMetadata{ID: "file1", FileName: "test.txt", EncryptedKey: []byte("key")},
+				Metadata:         models.FileMetadata{ID: "file1", FileName: "test.txt", EncryptedKey: make([]byte, 32)},
 				EncryptedContent: []byte("encrypted_content"),
 			}
 			_ = json.NewEncoder(w).Encode(resp)
@@ -53,12 +50,16 @@ func TestTransferCommands(t *testing.T) {
 	defer cleanup()
 	cfg.ServerURL = server.URL
 	cfg.CurrentUsername = "alice"
-	cfg.PrivateKeys["alice"] = make([]byte, 32) // Dummy key
-	cfg.Users["bob"] = models.User{Username: "bob", PublicKey: make([]byte, 32)}
+	cfg.ExchangePrivateKeys["alice"] = make([]byte, 32)
+	cfg.IdentityPrivateKeys["alice"] = make([]byte, 64)
+	cfg.Users["bob"] = models.User{
+		Username:          "bob",
+		IdentityPublicKey: make([]byte, 32),
+		ExchangePublicKey: make([]byte, 32),
+	}
 
 	// Test Ping
 	pingCmd.Run(pingCmd, []string{})
-	// We can't verify output easily, but we ensure no panic.
 
 	// Test Send File
 	tmpFile := filepath.Join(filepath.Dir(configPath), "test.txt")
@@ -70,7 +71,6 @@ func TestTransferCommands(t *testing.T) {
 	listFilesCmd.Run(listFilesCmd, []string{})
 
 	// Test Download File
-	// This will fail decryption because keys are dummy, but it covers the HTTP logic.
 	downloadFileCmd.Run(downloadFileCmd, []string{"file1"})
 }
 
@@ -85,14 +85,17 @@ func TestTransferErrors(t *testing.T) {
 	defer cleanup()
 	cfg.ServerURL = server.URL
 	cfg.CurrentUsername = "alice"
-	cfg.PrivateKeys["alice"] = make([]byte, 32)
-	cfg.Users["bob"] = models.User{Username: "bob", PublicKey: make([]byte, 32)}
+	cfg.ExchangePrivateKeys["alice"] = make([]byte, 32)
+	cfg.Users["bob"] = models.User{
+		Username:          "bob",
+		IdentityPublicKey: make([]byte, 32),
+		ExchangePublicKey: make([]byte, 32),
+	}
 
 	// Test Send File Error
 	tmpFile := filepath.Join(filepath.Dir(configPath), "test.txt")
 	_ = os.WriteFile(tmpFile, []byte("content"), 0644)
 
-	// Should print error but not panic
 	sendFileCmd.Run(sendFileCmd, []string{"bob", tmpFile})
 
 	// Test List Files Error
@@ -108,7 +111,7 @@ func TestTransferErrors(t *testing.T) {
 	sendFileCmd.Run(sendFileCmd, []string{"unknown", tmpFile})
 
 	// Test Send File - No Private Key
-	delete(cfg.PrivateKeys, "alice")
+	delete(cfg.ExchangePrivateKeys, "alice")
 	sendFileCmd.Run(sendFileCmd, []string{"bob", tmpFile})
 }
 
@@ -118,12 +121,11 @@ func TestDownloadFile(t *testing.T) {
 		if r.URL.Path == "/files/download" {
 			id := r.URL.Query().Get("id")
 			if id == "file1" {
-				// Return valid response
 				resp := models.UploadRequest{
 					Metadata: models.FileMetadata{
 						ID:           "file1",
 						FileName:     "test.txt",
-						EncryptedKey: make([]byte, 32), // Dummy key
+						EncryptedKey: make([]byte, 32),
 					},
 					EncryptedContent: []byte("encrypted"),
 				}
@@ -138,13 +140,12 @@ func TestDownloadFile(t *testing.T) {
 
 	configPath, cleanup := setupTestConfig(t)
 	defer cleanup()
-	// Ensure temp dir exists for file creation
 	_ = os.MkdirAll(filepath.Dir(configPath), 0755)
 	cfg.ServerURL = server.URL
 	cfg.CurrentUsername = "alice"
-	cfg.PrivateKeys["alice"] = make([]byte, 32)
+	cfg.ExchangePrivateKeys["alice"] = make([]byte, 32)
 
-	// Test Download - Success (will fail decryption but pass HTTP)
+	// Test Download - Success
 	downloadFileCmd.Run(downloadFileCmd, []string{"file1"})
 
 	// Test Download - Not Found

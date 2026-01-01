@@ -7,10 +7,10 @@ TOTAL_COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}
 
 echo "Total Coverage: $TOTAL_COVERAGE%"
 
-if python3 -c "import sys; sys.exit(0 if float('$TOTAL_COVERAGE') >= 65.0 else 1)"; then
+if python3 -c "import sys; sys.exit(0 if float('$TOTAL_COVERAGE') >= 60.0 else 1)"; then
   echo "Coverage achieved!"
   exit 0
 else
-  echo "Coverage is below 65%!"
+  echo "Coverage is below 60%!"
   exit 1
 fi

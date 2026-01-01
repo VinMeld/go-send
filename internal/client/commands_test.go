@@ -1,6 +1,8 @@
 package client
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,9 +18,11 @@ func setupTestConfig(t *testing.T) (string, func()) {
 
 	configPath := filepath.Join(tmpDir, "config.json")
 	cfg = &Config{
-		Users:       make(map[string]models.User),
-		PrivateKeys: make(map[string][]byte),
-		ServerURL:   "http://localhost:8080",
+		Users:               make(map[string]models.User),
+		IdentityPrivateKeys: make(map[string][]byte),
+		ExchangePrivateKeys: make(map[string][]byte),
+		SessionTokens:       make(map[string]string),
+		ServerURL:           "http://localhost:8080",
 	}
 	cfgFile = configPath // Set global cfgFile
 
@@ -33,7 +37,6 @@ func TestInitCmd(t *testing.T) {
 	configPath, cleanup := setupTestConfig(t)
 	defer cleanup()
 
-	// configInitCmd is the variable name
 	_ = configInitCmd.Flags().Set("user", "alice")
 
 	// Execute Run
@@ -42,8 +45,11 @@ func TestInitCmd(t *testing.T) {
 	if cfg.CurrentUsername != "alice" {
 		t.Errorf("Expected current user alice, got %s", cfg.CurrentUsername)
 	}
-	if _, ok := cfg.PrivateKeys["alice"]; !ok {
-		t.Error("Expected private key for alice")
+	if _, ok := cfg.IdentityPrivateKeys["alice"]; !ok {
+		t.Error("Expected identity private key for alice")
+	}
+	if _, ok := cfg.ExchangePrivateKeys["alice"]; !ok {
+		t.Error("Expected exchange private key for alice")
 	}
 
 	// Verify file was saved
@@ -57,9 +63,10 @@ func TestAddUserCmd(t *testing.T) {
 	_, cleanup := setupTestConfig(t)
 	defer cleanup()
 
-	// Add user
-	validKey := "dWkdQoVxXQj/ArSR5+It0g/H7dlBq8iB6WQVoDbfm1Q="
-	args := []string{"bob", validKey}
+	// Add user (expects 3 args: username, id_pub, ex_pub)
+	validIdKey := "dWkdQoVxXQj/ArSR5+It0g/H7dlBq8iB6WQVoDbfm1Q="
+	validExKey := "dWkdQoVxXQj/ArSR5+It0g/H7dlBq8iB6WQVoDbfm1Q="
+	args := []string{"bob", validIdKey, validExKey}
 
 	addUserCmd.Run(addUserCmd, args)
 
@@ -73,7 +80,7 @@ func TestSetUserCmd(t *testing.T) {
 	defer cleanup()
 
 	cfg.Users["charlie"] = models.User{Username: "charlie"}
-	cfg.PrivateKeys["charlie"] = []byte("key")
+	cfg.IdentityPrivateKeys["charlie"] = make([]byte, 64)
 
 	setUserCmd.Run(setUserCmd, []string{"charlie"})
 
@@ -111,4 +118,67 @@ func TestRemoveUserCmd(t *testing.T) {
 	if _, ok := cfg.Users["dave"]; ok {
 		t.Error("Expected dave to be removed")
 	}
+}
+
+func TestRegisterCmd(t *testing.T) {
+	// Setup Mock Server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/users" && r.Method == http.MethodPost {
+			token := r.Header.Get("X-Registration-Token")
+			if token != "secret" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+	cfg.ServerURL = server.URL
+
+	// Setup User
+	cfg.CurrentUsername = "alice"
+	cfg.IdentityPrivateKeys["alice"] = make([]byte, 64)
+	cfg.ExchangePrivateKeys["alice"] = make([]byte, 32)
+	cfg.Users["alice"] = models.User{Username: "alice"}
+
+	// Test Register Success
+	_ = registerCmd.Flags().Set("token", "secret")
+	registerCmd.Run(registerCmd, []string{})
+
+	// Test Register Failure (Wrong Token)
+	_ = registerCmd.Flags().Set("token", "wrong")
+	registerCmd.Run(registerCmd, []string{})
+}
+
+func TestDeleteFileCmd(t *testing.T) {
+	// Setup Mock Server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/files" && r.Method == http.MethodDelete {
+			id := r.URL.Query().Get("id")
+			if id == "file1" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer server.Close()
+
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+	cfg.ServerURL = server.URL
+	cfg.CurrentUsername = "alice"
+	cfg.SessionTokens["alice"] = "valid-token"
+
+	// Test Delete Success
+	deleteFileCmd.Run(deleteFileCmd, []string{"file1"})
+
+	// Test Delete Not Found
+	deleteFileCmd.Run(deleteFileCmd, []string{"unknown"})
 }

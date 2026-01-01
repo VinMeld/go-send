@@ -10,10 +10,12 @@ import (
 )
 
 type Config struct {
-	CurrentUsername string                 `json:"current_username"`
-	Users           map[string]models.User `json:"users"`        // Known users (address book)
-	PrivateKeys     map[string][]byte      `json:"private_keys"` // Map username -> private key (raw bytes)
-	ServerURL       string                 `json:"server_url"`
+	CurrentUsername     string                 `json:"current_username"`
+	Users               map[string]models.User `json:"users"`                 // Known users (address book)
+	IdentityPrivateKeys map[string][]byte      `json:"identity_private_keys"` // Map username -> Ed25519 private key
+	ExchangePrivateKeys map[string][]byte      `json:"exchange_private_keys"` // Map username -> X25519 private key
+	SessionTokens       map[string]string      `json:"session_tokens"`        // Map username -> session token
+	ServerURL           string                 `json:"server_url"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -21,9 +23,11 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &Config{
-				Users:       make(map[string]models.User),
-				PrivateKeys: make(map[string][]byte),
-				ServerURL:   transport.DefaultServerURL,
+				Users:               make(map[string]models.User),
+				IdentityPrivateKeys: make(map[string][]byte),
+				ExchangePrivateKeys: make(map[string][]byte),
+				SessionTokens:       make(map[string]string),
+				ServerURL:           transport.DefaultServerURL,
 			}, nil
 		}
 		return nil, err
@@ -36,8 +40,14 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.Users == nil {
 		cfg.Users = make(map[string]models.User)
 	}
-	if cfg.PrivateKeys == nil {
-		cfg.PrivateKeys = make(map[string][]byte)
+	if cfg.IdentityPrivateKeys == nil {
+		cfg.IdentityPrivateKeys = make(map[string][]byte)
+	}
+	if cfg.ExchangePrivateKeys == nil {
+		cfg.ExchangePrivateKeys = make(map[string][]byte)
+	}
+	if cfg.SessionTokens == nil {
+		cfg.SessionTokens = make(map[string]string)
 	}
 	return &cfg, nil
 }

@@ -12,20 +12,24 @@ import (
 
 // Storage handles persistence for users and files.
 type Storage struct {
-	mu        sync.RWMutex
-	BaseDir   string
-	Users     map[string]models.User
-	Files     map[string]models.FileMetadata
-	BlobStore BlobStore
+	mu         sync.RWMutex
+	BaseDir    string
+	Users      map[string]models.User
+	Files      map[string]models.FileMetadata
+	BlobStore  BlobStore
+	Challenges map[string]string         // username -> nonce
+	Sessions   map[string]models.Session // token -> session
 }
 
 // NewStorage creates a new Storage instance.
 func NewStorage(baseDir string, blobStore BlobStore) (*Storage, error) {
 	s := &Storage{
-		BaseDir:   baseDir,
-		Users:     make(map[string]models.User),
-		Files:     make(map[string]models.FileMetadata),
-		BlobStore: blobStore,
+		BaseDir:    baseDir,
+		Users:      make(map[string]models.User),
+		Files:      make(map[string]models.FileMetadata),
+		BlobStore:  blobStore,
+		Challenges: make(map[string]string),
+		Sessions:   make(map[string]models.Session),
 	}
 	if err := s.load(); err != nil {
 		return nil, err
@@ -169,4 +173,44 @@ func (s *Storage) DeleteFile(id string) error {
 	delete(s.Files, id)
 
 	return s.saveInternal()
+}
+
+// CreateChallenge generates and stores a nonce for a user.
+func (s *Storage) CreateChallenge(username string, nonce string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Challenges[username] = nonce
+}
+
+// GetChallenge retrieves and deletes a challenge for a user.
+func (s *Storage) GetChallenge(username string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	nonce, ok := s.Challenges[username]
+	if ok {
+		delete(s.Challenges, username)
+	}
+	return nonce, ok
+}
+
+// CreateSession stores a new session.
+func (s *Storage) CreateSession(session models.Session) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Sessions[session.Token] = session
+}
+
+// GetSession retrieves a session by token.
+func (s *Storage) GetSession(token string) (models.Session, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sess, ok := s.Sessions[token]
+	return sess, ok
+}
+
+// DeleteSession removes a session.
+func (s *Storage) DeleteSession(token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.Sessions, token)
 }

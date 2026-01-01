@@ -43,19 +43,28 @@ var configInitCmd = &cobra.Command{
 			return
 		}
 
-		// Generate Keys
-		keys, err := crypto.GenerateKeyPair()
+		// Generate Identity Keys (Ed25519)
+		idKeys, err := crypto.GenerateIdentityKeyPair()
 		if err != nil {
-			fmt.Println("Error generating keys:", err)
+			fmt.Println("Error generating identity keys:", err)
+			return
+		}
+
+		// Generate Exchange Keys (X25519)
+		exKeys, err := crypto.GenerateExchangeKeyPair()
+		if err != nil {
+			fmt.Println("Error generating exchange keys:", err)
 			return
 		}
 
 		// Update Config
 		cfg.CurrentUsername = username
-		cfg.PrivateKeys[username] = keys.Private[:]
+		cfg.IdentityPrivateKeys[username] = idKeys.Private
+		cfg.ExchangePrivateKeys[username] = exKeys.Private[:]
 		cfg.Users[username] = models.User{
-			Username:  username,
-			PublicKey: keys.Public[:],
+			Username:          username,
+			IdentityPublicKey: idKeys.Public,
+			ExchangePublicKey: exKeys.Public[:],
 		}
 
 		if err := SaveConfigGlobal(); err != nil {
@@ -63,7 +72,8 @@ var configInitCmd = &cobra.Command{
 			return
 		}
 		fmt.Printf("Initialized user %s\n", username)
-		fmt.Printf("Public Key: %s\n", base64.StdEncoding.EncodeToString(keys.Public[:]))
+		fmt.Printf("Identity Public Key: %s\n", base64.StdEncoding.EncodeToString(idKeys.Public))
+		fmt.Printf("Exchange Public Key: %s\n", base64.StdEncoding.EncodeToString(exKeys.Public[:]))
 	},
 }
 
@@ -73,7 +83,7 @@ var setUserCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		username := args[0]
-		if _, ok := cfg.PrivateKeys[username]; !ok {
+		if _, ok := cfg.IdentityPrivateKeys[username]; !ok {
 			fmt.Printf("User %s not found in local config (no private key)\n", username)
 			return
 		}
@@ -87,26 +97,29 @@ var setUserCmd = &cobra.Command{
 }
 
 var addUserCmd = &cobra.Command{
-	Use:   "add-user <username> <public_key_base64>",
+	Use:   "add-user <username> <id_pub_key_b64> <ex_pub_key_b64>",
 	Short: "Add a known user",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.ExactArgs(3),
 	Run: func(cmd *cobra.Command, args []string) {
 		username := args[0]
-		pubKeyStr := args[1]
+		idPubKeyStr := args[1]
+		exPubKeyStr := args[2]
 
-		pubKey, err := base64.StdEncoding.DecodeString(pubKeyStr)
+		idPubKey, err := base64.StdEncoding.DecodeString(idPubKeyStr)
 		if err != nil {
-			fmt.Println("Error decoding public key:", err)
+			fmt.Println("Error decoding identity public key:", err)
 			return
 		}
-		if len(pubKey) != 32 {
-			fmt.Println("Invalid public key length (must be 32 bytes)")
+		exPubKey, err := base64.StdEncoding.DecodeString(exPubKeyStr)
+		if err != nil {
+			fmt.Println("Error decoding exchange public key:", err)
 			return
 		}
 
 		cfg.Users[username] = models.User{
-			Username:  username,
-			PublicKey: pubKey,
+			Username:          username,
+			IdentityPublicKey: idPubKey,
+			ExchangePublicKey: exPubKey,
 		}
 		if err := SaveConfigGlobal(); err != nil {
 			fmt.Println("Error saving config:", err)
@@ -122,7 +135,9 @@ var listUsersCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Known Users:")
 		for _, u := range cfg.Users {
-			fmt.Printf("- %s (Public Key: %s)\n", u.Username, base64.StdEncoding.EncodeToString(u.PublicKey))
+			fmt.Printf("- %s\n", u.Username)
+			fmt.Printf("  Identity: %s\n", base64.StdEncoding.EncodeToString(u.IdentityPublicKey))
+			fmt.Printf("  Exchange: %s\n", base64.StdEncoding.EncodeToString(u.ExchangePublicKey))
 		}
 	},
 }

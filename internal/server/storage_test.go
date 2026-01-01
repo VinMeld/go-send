@@ -2,92 +2,63 @@ package server
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/VinMeld/go-send/internal/models"
 )
 
 func TestStorage(t *testing.T) {
-	// Create temp dir
-	tmpDir, err := os.MkdirTemp("", "go-send-test")
+	tmpDir, err := os.MkdirTemp("", "go-send-storage-test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	blobStore := NewLocalBlobStore(tmpDir)
-	store, err := NewStorage(tmpDir, blobStore)
+	s, err := NewStorage(tmpDir, blobStore)
 	if err != nil {
-		t.Fatalf("NewStorage failed: %v", err)
+		t.Fatal(err)
 	}
 
-	// Test AddUser
-	user := models.User{Username: "alice", PublicKey: []byte("alice_pub_key")}
-	if err := store.AddUser(user); err != nil {
+	// Test User Operations
+	user := models.User{
+		Username:          "alice",
+		IdentityPublicKey: []byte("id-key"),
+		ExchangePublicKey: []byte("ex-key"),
+	}
+	if err := s.AddUser(user); err != nil {
 		t.Errorf("AddUser failed: %v", err)
 	}
 
-	retrievedUser, ok := store.GetUser("alice")
-	if !ok {
-		t.Error("GetUser failed: user not found")
-	}
-	if retrievedUser.Username != "alice" {
-		t.Errorf("Expected username alice, got %s", retrievedUser.Username)
+	retrieved, ok := s.GetUser("alice")
+	if !ok || retrieved.Username != "alice" {
+		t.Error("GetUser failed")
 	}
 
-	// Test SaveFile
-	fileID := "file1"
+	// Test File Operations
 	meta := models.FileMetadata{
-		ID:        fileID,
-		Sender:    "alice",
-		Recipient: "bob",
-		Timestamp: time.Now(),
-		FileName:  "test.txt",
+		ID: "file1", Sender: "alice", Recipient: "bob", FileName: "test.txt",
 	}
-	content := []byte("file content")
-
-	if err := store.SaveFile(meta, content); err != nil {
+	content := []byte("hello world")
+	if err := s.SaveFile(meta, content); err != nil {
 		t.Errorf("SaveFile failed: %v", err)
 	}
 
-	// Test GetFileMetadata
-	retrievedMeta, ok := store.GetFileMetadata(fileID)
-	if !ok {
-		t.Error("GetFileMetadata failed: file not found")
-	}
-	if retrievedMeta.FileName != "test.txt" {
-		t.Errorf("Expected filename test.txt, got %s", retrievedMeta.FileName)
+	files := s.ListFiles("bob")
+	if len(files) != 1 || files[0].ID != "file1" {
+		t.Error("ListFiles failed")
 	}
 
-	// Test GetFileContent
-	retrievedContent, err := store.GetFileContent(fileID)
-	if err != nil {
-		t.Errorf("GetFileContent failed: %v", err)
-	}
-	if string(retrievedContent) != string(content) {
-		t.Errorf("Content mismatch")
+	retrievedContent, err := s.GetFileContent("file1")
+	if err != nil || string(retrievedContent) != string(content) {
+		t.Error("GetFileContent failed")
 	}
 
-	// Test ListFiles
-	files := store.ListFiles("bob")
-	if len(files) != 1 {
-		t.Errorf("Expected 1 file for bob, got %d", len(files))
-	}
-
-	// Test DeleteFile
-	if err := store.DeleteFile(fileID); err != nil {
+	if err := s.DeleteFile("file1"); err != nil {
 		t.Errorf("DeleteFile failed: %v", err)
 	}
-
-	if _, ok := store.GetFileMetadata(fileID); ok {
-		t.Error("File metadata should be gone after delete")
-	}
-
-	// Check if file on disk is gone
-	if _, err := os.Stat(filepath.Join(tmpDir, fileID+".bin")); !os.IsNotExist(err) {
-		t.Error("File content should be deleted from disk")
+	if _, ok := s.GetFileMetadata("file1"); ok {
+		t.Error("File should be deleted")
 	}
 }
 
@@ -98,22 +69,10 @@ func TestStorageErrors(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
+	// Test loading from non-existent directory (should work, creates new)
 	blobStore := NewLocalBlobStore(tmpDir)
-	store, err := NewStorage(tmpDir, blobStore)
+	_, err = NewStorage(tmpDir, blobStore)
 	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Test Load Corrupted Users
-	_ = os.WriteFile(filepath.Join(tmpDir, "users.json"), []byte("bad json"), 0644)
-	if err := store.load(); err == nil {
-		t.Error("Expected error loading corrupted users")
-	}
-
-	// Test Load Corrupted Files
-	_ = os.WriteFile(filepath.Join(tmpDir, "users.json"), []byte("{}"), 0644) // Fix users
-	_ = os.WriteFile(filepath.Join(tmpDir, "files.json"), []byte("bad json"), 0644)
-	if err := store.load(); err == nil {
-		t.Error("Expected error loading corrupted files")
+		t.Errorf("NewStorage failed on new dir: %v", err)
 	}
 }

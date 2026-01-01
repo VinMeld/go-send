@@ -5,10 +5,23 @@ import (
 	"testing"
 )
 
-func TestGenerateKeyPair(t *testing.T) {
-	kp, err := GenerateKeyPair()
+func TestGenerateIdentityKeyPair(t *testing.T) {
+	kp, err := GenerateIdentityKeyPair()
 	if err != nil {
-		t.Fatalf("GenerateKeyPair failed: %v", err)
+		t.Fatalf("GenerateIdentityKeyPair failed: %v", err)
+	}
+	if len(kp.Public) != 32 {
+		t.Error("Public key should be 32 bytes")
+	}
+	if len(kp.Private) != 64 { // Ed25519 private key is 64 bytes
+		t.Errorf("Private key should be 64 bytes, got %d", len(kp.Private))
+	}
+}
+
+func TestGenerateExchangeKeyPair(t *testing.T) {
+	kp, err := GenerateExchangeKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateExchangeKeyPair failed: %v", err)
 	}
 	if kp.Public == nil || len(kp.Public) != 32 {
 		t.Error("Public key should be 32 bytes")
@@ -18,12 +31,24 @@ func TestGenerateKeyPair(t *testing.T) {
 	}
 }
 
+func TestSignVerify(t *testing.T) {
+	kp, _ := GenerateIdentityKeyPair()
+	message := []byte("Hello, World!")
+	sig := Sign(kp.Private, message)
+	if !Verify(kp.Public, message, sig) {
+		t.Error("Signature verification failed")
+	}
+	if Verify(kp.Public, []byte("Wrong message"), sig) {
+		t.Error("Signature verification should fail for wrong message")
+	}
+}
+
 func TestEncryptDecrypt(t *testing.T) {
-	alice, err := GenerateKeyPair()
+	alice, err := GenerateExchangeKeyPair()
 	if err != nil {
 		t.Fatal(err)
 	}
-	bob, err := GenerateKeyPair()
+	bob, err := GenerateExchangeKeyPair()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,9 +73,9 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestDecryptFailure(t *testing.T) {
-	alice, _ := GenerateKeyPair()
-	bob, _ := GenerateKeyPair()
-	eve, _ := GenerateKeyPair()
+	alice, _ := GenerateExchangeKeyPair()
+	bob, _ := GenerateExchangeKeyPair()
+	eve, _ := GenerateExchangeKeyPair()
 
 	message := []byte("Secret")
 	encrypted, _ := Encrypt(message, bob.Public, alice.Private)
