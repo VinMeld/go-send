@@ -34,7 +34,9 @@ func TestAuthHandlers(t *testing.T) {
 		IdentityPublicKey: idKey.Public,
 		ExchangePublicKey: exKey.Public[:],
 	}
-	storage.AddUser(user)
+	if err := storage.AddUser(user); err != nil {
+		t.Fatalf("Failed to add user: %v", err)
+	}
 
 	// Test HandleGetChallenge
 	req, _ := http.NewRequest("GET", "/auth/challenge?username=alice", nil)

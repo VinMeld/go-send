@@ -250,6 +250,7 @@ func TestDeleteFile(t *testing.T) {
 
 	// Test 1: Sender can delete
 	resp := makeDeleteReq("alice", "file1")
+	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Sender should be able to delete, got %d", resp.StatusCode)
 	}
@@ -259,6 +260,7 @@ func TestDeleteFile(t *testing.T) {
 
 	// Test 2: Recipient can delete
 	resp = makeDeleteReq("bob", "file1")
+	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Recipient should be able to delete, got %d", resp.StatusCode)
 	}
@@ -268,12 +270,14 @@ func TestDeleteFile(t *testing.T) {
 
 	// Test 3: Unauthorized user cannot delete
 	resp = makeDeleteReq("eve", "file1")
+	resp.Body.Close()
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("Unauthorized user should get 403, got %d", resp.StatusCode)
 	}
 
 	// Test 4: File not found
 	resp = makeDeleteReq("alice", "unknown")
+	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("Unknown file should get 404, got %d", resp.StatusCode)
 	}
