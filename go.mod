@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/crypto v0.46.0
+	golang.org/x/crypto v0.31.0
 )
 
 require (
