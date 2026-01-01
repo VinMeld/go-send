@@ -56,9 +56,9 @@ func SaveConfig(path string, cfg *Config) error {
 }
 
 func GetConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
+	configDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".go-send", "config.json"), nil
+	return filepath.Join(configDir, "go-send", "config.json"), nil
 }
