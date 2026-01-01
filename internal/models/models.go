@@ -15,8 +15,8 @@ type FileMetadata struct {
 	Recipient    string    `json:"recipient"`
 	EncryptedKey []byte    `json:"encrypted_key"` // Symmetric key encrypted with recipient's public key
 	Timestamp    time.Time `json:"timestamp"`
-	FileName     string    `json:"file_name"` // Original filename (encrypted? No, metadata usually visible, or maybe encrypted in blob)
-    // For MVP, let's keep filename visible in metadata for simplicity, or we can make it generic.
+	FileName     string    `json:"file_name"` // Original filename
+	AutoDelete   bool      `json:"auto_delete"`
 }
 
 // UploadRequest is the payload for uploading a file.

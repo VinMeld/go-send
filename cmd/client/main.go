@@ -1,7 +1,15 @@
 package main
 
-import "github.com/VinMeld/go-send/internal/client"
+import (
+	"fmt"
+	"os"
+
+	"github.com/VinMeld/go-send/internal/client"
+)
 
 func main() {
-	client.Execute()
+	if err := client.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

@@ -17,11 +17,8 @@ var rootCmd = &cobra.Command{
 	Short: "Secure file sending CLI",
 }
 
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+func Execute() error {
+	return rootCmd.Execute()
 }
 
 func init() {

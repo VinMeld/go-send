@@ -1,0 +1,13 @@
+{
+  "current_username": "bob",
+  "users": {
+    "bob": {
+      "username": "bob",
+      "public_key": "zOhlLJVhbQRgKAshuP9bK8potQqOj8GY0VzBmMG8zQE="
+    }
+  },
+  "private_keys": {
+    "bob": "/CQAPyQ2S2Y9xbVLzspVmx9BDwwbRAZeRtuRrPNlazg="
+  },
+  "server_url": "http://localhost:9097"
+}

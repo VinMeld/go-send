@@ -123,5 +123,14 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 		Metadata:         meta,
 		EncryptedContent: content,
 	}
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		// If encoding fails, we probably shouldn't delete the file yet?
+		// Or maybe we should log it.
+		return
+	}
+
+	// Auto-delete after successful download if requested
+	if meta.AutoDelete {
+		h.Storage.DeleteFile(id)
+	}
 }

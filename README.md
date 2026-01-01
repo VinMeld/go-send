@@ -6,6 +6,7 @@
 
 - **End-to-End Encryption**: Files are encrypted on the client side using NaCl Box (Curve25519, XSalsa20, Poly1305) before being uploaded. The server never sees the plaintext.
 - **Store-and-Forward**: Send files to users even when they are offline. The server stores the encrypted blob.
+- **Auto-Delete**: Optionally delete files from the server immediately after a successful download using the `--auto-delete` flag.
 - **Key Management**: Simple CLI for generating identity keys and managing a local address book of public keys.
 - **Client-Server Architecture**:
   - **Server**: HTTP backend for storing encrypted blobs and user metadata.
@@ -50,6 +51,22 @@ go run cmd/server/main.go -port :9090
 # Server listening on :9090
 ```
 
+### Configuration (.env)
+The server supports configuration via a `.env` file or environment variables.
+
+**Example `.env`:**
+```env
+PORT=:9090
+STORAGE_TYPE=s3 # Options: local (default), s3
+AWS_BUCKET=my-bucket
+AWS_REGION=us-east-1
+```
+
+To use S3 storage:
+1. Set `STORAGE_TYPE=s3`
+2. Set `AWS_BUCKET` and `AWS_REGION`
+3. Ensure AWS credentials are set (e.g., `~/.aws/credentials` or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` env vars).
+
 ### 2. Client Setup (Alice & Bob)
 
 **Initialize Alice:**
@@ -88,8 +105,12 @@ go run cmd/client/main.go add-user bob <BOB_PUB_KEY> --config alice.json
 Alice sends a file to Bob.
 
 ```bash
+```bash
 echo "Top Secret" > secret.txt
 go run cmd/client/main.go send-file bob secret.txt --config alice.json
+
+# Send with Auto-Delete (File removed from server after download)
+go run cmd/client/main.go send-file bob secret.txt --auto-delete --config alice.json
 ```
 
 ### 5. Receive a File

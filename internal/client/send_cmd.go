@@ -16,6 +16,7 @@ import (
 
 func init() {
 	rootCmd.AddCommand(sendFileCmd)
+	sendFileCmd.Flags().Bool("auto-delete", false, "Delete file from server after download")
 }
 
 var sendFileCmd = &cobra.Command{
@@ -23,6 +24,8 @@ var sendFileCmd = &cobra.Command{
 	Short: "Send an encrypted file",
 	Args:  cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
+		autoDelete, _ := cmd.Flags().GetBool("auto-delete")
+
 		var recipient string
 		var filePath string
 
@@ -127,6 +130,7 @@ var sendFileCmd = &cobra.Command{
 				Recipient:    recipient,
 				FileName:     filepath.Base(filePath),
 				EncryptedKey: ephemeral.Public[:], // Store ephemeral public key here
+				AutoDelete:   autoDelete,
 			},
 			EncryptedContent: encryptedContent,
 		}

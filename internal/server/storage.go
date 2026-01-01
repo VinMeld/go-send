@@ -12,18 +12,20 @@ import (
 
 // Storage handles persistence for users and files.
 type Storage struct {
-	mu       sync.RWMutex
-	BaseDir  string
-	Users    map[string]models.User
-	Files    map[string]models.FileMetadata
+	mu        sync.RWMutex
+	BaseDir   string
+	Users     map[string]models.User
+	Files     map[string]models.FileMetadata
+	BlobStore BlobStore
 }
 
 // NewStorage creates a new Storage instance.
-func NewStorage(baseDir string) (*Storage, error) {
+func NewStorage(baseDir string, blobStore BlobStore) (*Storage, error) {
 	s := &Storage{
-		BaseDir: baseDir,
-		Users:   make(map[string]models.User),
-		Files:   make(map[string]models.FileMetadata),
+		BaseDir:   baseDir,
+		Users:     make(map[string]models.User),
+		Files:     make(map[string]models.FileMetadata),
+		BlobStore: blobStore,
 	}
 	if err := s.load(); err != nil {
 		return nil, err
@@ -57,8 +59,11 @@ func (s *Storage) load() error {
 func (s *Storage) save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.saveInternal()
+}
 
-	// Save Users
+func (s *Storage) saveInternal() error {
+	// Caller must hold lock
 	usersData, err := json.MarshalIndent(s.Users, "", "  ")
 	if err != nil {
 		return err
@@ -67,7 +72,6 @@ func (s *Storage) save() error {
 		return err
 	}
 
-	// Save Files Metadata
 	filesData, err := json.MarshalIndent(s.Files, "", "  ")
 	if err != nil {
 		return err
@@ -99,47 +103,26 @@ func (s *Storage) SaveFile(metadata models.FileMetadata, content []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Write content to disk
-	filePath := filepath.Join(s.BaseDir, metadata.ID+".bin")
-	if err := os.WriteFile(filePath, content, 0644); err != nil {
+	// Save content to BlobStore
+	if err := s.BlobStore.Save(metadata.ID, content); err != nil {
 		return err
 	}
 
 	s.Files[metadata.ID] = metadata
-	
+
 	// We need to unlock before calling save() because save() locks too?
 	// Ah, save() locks. I should refactor save() to not lock, or call an internal save.
 	// Let's just inline the save logic or make save() unexported and lock-free, called by public methods.
 	// Actually, I'll just release the lock before calling save, but that's racy.
 	// Better: make save() NOT lock, and assume caller holds lock.
-	
-	// Re-implementing save logic here to avoid deadlock or race, 
+
+	// Re-implementing save logic here to avoid deadlock or race,
 	// but for MVP let's just do it correctly.
 	// I'll change save() to NOT lock, and wrap public methods with lock.
-	
+
 	// Wait, I can't change save() signature easily in this tool call without rewriting it.
 	// I'll just use a separate internal save method.
 	return s.saveInternal()
-}
-
-func (s *Storage) saveInternal() error {
-    // Caller must hold lock
-	usersData, err := json.MarshalIndent(s.Users, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(s.BaseDir, "users.json"), usersData, 0644); err != nil {
-		return err
-	}
-
-	filesData, err := json.MarshalIndent(s.Files, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(s.BaseDir, "files.json"), filesData, 0644); err != nil {
-		return err
-	}
-	return nil
 }
 
 // GetFileMetadata retrieves metadata for a file.
@@ -152,8 +135,7 @@ func (s *Storage) GetFileMetadata(id string) (models.FileMetadata, bool) {
 
 // GetFileContent retrieves the content of a file.
 func (s *Storage) GetFileContent(id string) ([]byte, error) {
-	filePath := filepath.Join(s.BaseDir, id+".bin")
-	return os.ReadFile(filePath)
+	return s.BlobStore.Get(id)
 }
 
 // ListFiles returns files for a specific recipient.
@@ -167,4 +149,24 @@ func (s *Storage) ListFiles(recipient string) []models.FileMetadata {
 		}
 	}
 	return result
+}
+
+// DeleteFile removes a file and its metadata.
+func (s *Storage) DeleteFile(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.Files[id]; !ok {
+		return fmt.Errorf("file not found")
+	}
+
+	// Remove from BlobStore
+	if err := s.BlobStore.Delete(id); err != nil {
+		return err
+	}
+
+	// Remove from memory
+	delete(s.Files, id)
+
+	return s.saveInternal()
 }

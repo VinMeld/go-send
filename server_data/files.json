@@ -1,0 +1,20 @@
+{
+  "1caaf9fe-5966-4883-b64d-204ec8fe1011": {
+    "id": "1caaf9fe-5966-4883-b64d-204ec8fe1011",
+    "sender": "alice",
+    "recipient": "bob",
+    "encrypted_key": "/COgM/IRCm2jAL33H5k0RHsXTCF+C97efVT8az31yzw=",
+    "timestamp": "2025-12-31T19:53:08.092576642-05:00",
+    "file_name": "secret.txt",
+    "auto_delete": false
+  },
+  "a8fe922d-1e77-4424-9aa1-c917b2c4647f": {
+    "id": "a8fe922d-1e77-4424-9aa1-c917b2c4647f",
+    "sender": "alice",
+    "recipient": "bob",
+    "encrypted_key": "pXDoZ4t9HaliWG2qYP2ZFoCvJWj8Z5MnuInUdoNpnRU=",
+    "timestamp": "2025-12-31T19:53:20.652220157-05:00",
+    "file_name": "secret.txt",
+    "auto_delete": false
+  }
+}
