@@ -28,6 +28,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
 
   docker:
     runs-on: ubuntu-latest
@@ -155,16 +156,3 @@ jobs:
           git push
 
 
-  aur-update:
-    needs: goreleaser
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux
-      options: --privileged
-    steps:
-      - name: AUR Update
-        uses: TheWisker/aur-update@v1
-        with:
-          aur_key: ${{ secrets.AUR_SSH_KEY }}
-          username: VinMeld
-          email: github-actions-bot@noreply.com

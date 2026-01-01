@@ -88,3 +88,20 @@ nfpms:
         dst: /usr/lib/systemd/system/go-send-server.service
         file_info:
           mode: 0644
+
+aurs:
+  - name: go-send-bin
+    ids:
+      - client
+    homepage: https://github.com/VinMeld/go-send
+    description: Secure file transfer tool with challenge-response authentication (Binary)
+    maintainers:
+      - "Vinay <vinaymeldrum@gmail.com>"
+    license: "GPL-3.0"
+    private_key: '{{ .Env.AUR_SSH_KEY }}'
+    git_url: 'ssh://aur@aur.archlinux.org/go-send-bin.git'
+    conflicts:
+      - go-send
+      - go-send-git
+    provides:
+      - go-send
