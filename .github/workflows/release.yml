@@ -157,6 +157,9 @@ jobs:
   aur-update:
     needs: goreleaser
     runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -165,25 +168,12 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Setup SSH for AUR
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
-          cat >> ~/.ssh/config << EOF
-          Host aur.archlinux.org
-            IdentityFile ~/.ssh/aur
-            User aur
-          EOF
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm wget perl-digest-sha-pp git
 
-      - name: Clone and update AUR package
+      - name: Update PKGBUILD
         run: |
-          git clone ssh://aur@aur.archlinux.org/go-send-bin.git aur-repo
-          cd aur-repo
-          
-          # Copy PKGBUILD-bin and rename
-          cp "$GITHUB_WORKSPACE/packaging/aur/PKGBUILD-bin" PKGBUILD
+          cd packaging/aur/go-send-bin
           
           # Update version
           sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.VERSION }}/" PKGBUILD
@@ -194,24 +184,15 @@ jobs:
           wget -q "https://github.com/VinMeld/go-send/releases/download/v${VERSION}/go-send_${VERSION}_linux_amd64.tar.gz"
           wget -q "https://github.com/VinMeld/go-send/releases/download/v${VERSION}/go-send_${VERSION}_linux_arm64.tar.gz"
           
-          AMD64_SHA=$(sha256sum "go-send_${VERSION}_linux_amd64.tar.gz" | awk '{print $1}')
-          ARM64_SHA=$(sha256sum "go-send_${VERSION}_linux_arm64.tar.gz" | awk '{print $1}')
+          AMD64_SHA=$(shasum -a 256 "go-send_${VERSION}_linux_amd64.tar.gz" | awk '{print $1}')
+          ARM64_SHA=$(shasum -a 256 "go-send_${VERSION}_linux_arm64.tar.gz" | awk '{print $1}')
           
           # Update sha256sums in PKGBUILD
           sed -i "s/sha256sums_x86_64=.*/sha256sums_x86_64=('$AMD64_SHA')/" PKGBUILD
           sed -i "s/sha256sums_aarch64=.*/sha256sums_aarch64=('$ARM64_SHA')/" PKGBUILD
-          
-          # Generate .SRCINFO using Docker (ignore git config warnings)
-          docker run --rm -v "$PWD:/pkg" archlinux:latest bash -c "
-            pacman -Syu --noconfirm base-devel git 2>&1 | grep -v 'could not lock config' || true
-            useradd -m builder
-            chown -R builder:builder /pkg
-            su builder -c 'cd /pkg && makepkg --printsrcinfo > .SRCINFO'
-          "
-          
-          # Commit and push
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PKGBUILD .SRCINFO
-          git commit -m "Update to version ${{ steps.version.outputs.VERSION }}"
-          git push
+
+      - name: Publish to AUR
+        uses: TheWisker/aur-update@v2.0.1
+        with:
+          aur_key: ${{ secrets.AUR_SSH_KEY }}
+          aur_folder: packaging/aur
