@@ -58,7 +58,7 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Storage.AddUser(user); err != nil {
+	if err := h.Storage.AddUser(r.Context(), user); err != nil {
 		slog.Error("failed to add user", "username", user.Username, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -70,15 +70,11 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")
 	if username == "" {
-		// Try path param if using router, but for stdlib:
-		// We'll stick to query param or simple path parsing if needed.
-		// Let's assume /users?username=... for simplicity or parse path.
-		// Actually, let's use a simple mux in main.go, so here we might just expect query param.
 		http.Error(w, "username required", http.StatusBadRequest)
 		return
 	}
 
-	user, ok := h.Storage.GetUser(username)
+	user, ok := h.Storage.GetUser(r.Context(), username)
 	if !ok {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
@@ -105,7 +101,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	req.Metadata.ID = uuid.New().String()
 	req.Metadata.Timestamp = time.Now()
 
-	if err := h.Storage.SaveFile(req.Metadata, req.EncryptedContent); err != nil {
+	if err := h.Storage.SaveFile(r.Context(), req.Metadata, req.EncryptedContent); err != nil {
 		slog.Error("failed to save file", "sender", req.Metadata.Sender, "recipient", req.Metadata.Recipient, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -123,21 +119,23 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	files := h.Storage.ListFiles(recipient)
+	files, err := h.Storage.ListFiles(r.Context(), recipient)
+	if err != nil {
+		slog.Error("failed to list files", "recipient", recipient, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	_ = json.NewEncoder(w).Encode(files)
 }
 
 func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
-	// Simple path parsing: /files/{id}
-	// But since we are using stdlib http.ServeMux (likely), we might need to parse URL.
-	// Let's assume query param ?id=... for simplicity unless we use a router.
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		http.Error(w, "id required", http.StatusBadRequest)
 		return
 	}
 
-	meta, ok := h.Storage.GetFileMetadata(id)
+	meta, ok := h.Storage.GetFileMetadata(r.Context(), id)
 	if !ok {
 		http.Error(w, "file not found", http.StatusNotFound)
 		return
@@ -156,14 +154,12 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 		EncryptedContent: content,
 	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		// If encoding fails, we probably shouldn't delete the file yet?
-		// Or maybe we should log it.
 		return
 	}
 
 	// Auto-delete after successful download if requested
 	if meta.AutoDelete {
-		_ = h.Storage.DeleteFile(id)
+		_ = h.Storage.DeleteFile(r.Context(), id)
 	}
 }
 
@@ -184,10 +180,10 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		token := parts[1]
-		session, ok := h.Storage.GetSession(token)
+		session, ok := h.Storage.GetSession(r.Context(), token)
 		if !ok || session.ExpiresAt.Before(time.Now()) {
 			if ok {
-				h.Storage.DeleteSession(token)
+				_ = h.Storage.DeleteSession(r.Context(), token)
 			}
 			http.Error(w, "invalid or expired session", http.StatusUnauthorized)
 			return
@@ -196,5 +192,52 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// Add user to context
 		ctx := context.WithValue(r.Context(), userContextKey, session.Username)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+}
+
+// ServeHTTP implements http.Handler.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Simple router
+	switch r.URL.Path {
+	case "/ping":
+		h.Ping(w, r)
+	case "/users":
+		if r.Method == http.MethodPost {
+			h.RegisterUser(w, r)
+		} else if r.Method == http.MethodGet {
+			h.GetUser(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	case "/files":
+		if r.Method == http.MethodPost {
+			h.AuthMiddleware(h.UploadFile)(w, r)
+		} else if r.Method == http.MethodGet {
+			h.AuthMiddleware(h.ListFiles)(w, r)
+		} else if r.Method == http.MethodDelete {
+			h.AuthMiddleware(h.DeleteFile)(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	case "/files/download":
+		if r.Method == http.MethodGet {
+			h.AuthMiddleware(h.DownloadFile)(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	case "/auth/challenge":
+		if r.Method == http.MethodGet {
+			h.HandleGetChallenge(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	case "/auth/login":
+		if r.Method == http.MethodPost {
+			h.HandleLogin(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	default:
+		http.NotFound(w, r)
 	}
 }

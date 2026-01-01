@@ -3,6 +3,9 @@ FROM golang:alpine AS builder
 
 WORKDIR /app
 
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev
+
 # Copy go mod and sum files
 COPY go.mod go.sum ./
 RUN go mod download
@@ -11,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the server binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o go-send-server cmd/server/main.go
+RUN CGO_ENABLED=1 GOOS=linux go build -o go-send-server cmd/server/main.go
 
 # Final Stage
 FROM alpine:latest

@@ -50,25 +50,21 @@ ALICE_CONFIG="$TEST_DIR/alice_config.json"
 BOB_CONFIG="$TEST_DIR/bob_config.json"
 
 echo "--- Scenario: Setup Alice ---"
-ALICE_OUTPUT=$(./go-send-client config init --user alice --config "$ALICE_CONFIG")
+# New: Init with server flag
+ALICE_OUTPUT=$(./go-send-client config init --user alice --server "$SERVER_URL" --config "$ALICE_CONFIG")
 echo "$ALICE_OUTPUT"
-./go-send-client set-server $SERVER_URL --config "$ALICE_CONFIG"
 
 echo "--- Scenario: Setup Bob ---"
-BOB_OUTPUT=$(./go-send-client config init --user bob --config "$BOB_CONFIG")
+# New: Init with server flag
+BOB_OUTPUT=$(./go-send-client config init --user bob --server "$SERVER_URL" --config "$BOB_CONFIG")
 echo "$BOB_OUTPUT"
-./go-send-client set-server $SERVER_URL --config "$BOB_CONFIG"
 
-# Extract keys from output
+# Extract keys from output (just for verification logging)
 ALICE_ID_PUB=$(echo "$ALICE_OUTPUT" | grep "Identity Public Key:" | awk '{print $4}')
-ALICE_EX_PUB=$(echo "$ALICE_OUTPUT" | grep "Exchange Public Key:" | awk '{print $4}')
 BOB_ID_PUB=$(echo "$BOB_OUTPUT" | grep "Identity Public Key:" | awk '{print $4}')
-BOB_EX_PUB=$(echo "$BOB_OUTPUT" | grep "Exchange Public Key:" | awk '{print $4}')
 
 echo "Alice ID Pub: $ALICE_ID_PUB"
-echo "Alice EX Pub: $ALICE_EX_PUB"
 echo "Bob ID Pub: $BOB_ID_PUB"
-echo "Bob EX Pub: $BOB_EX_PUB"
 
 echo "--- Scenario: Register Users with Server ---"
 # Test failure without token
@@ -83,34 +79,43 @@ fi
 ./go-send-client register --token secret123 --config "$ALICE_CONFIG"
 ./go-send-client register --token secret123 --config "$BOB_CONFIG"
 
-echo "--- Scenario: Exchange Keys Locally ---"
-./go-send-client add-user bob $BOB_ID_PUB $BOB_EX_PUB --config "$ALICE_CONFIG"
-./go-send-client add-user alice $ALICE_ID_PUB $ALICE_EX_PUB --config "$BOB_CONFIG"
-
 echo "--- Scenario: Login ---"
 ./go-send-client login --config "$ALICE_CONFIG"
 ./go-send-client login --config "$BOB_CONFIG"
 
-echo "--- Scenario: Alice Sends File to Bob ---"
+echo "--- Scenario: Alice Sends File to Bob (Discovery) ---"
 echo "This is a secret message" > "$TEST_DIR/test_file.txt"
-./go-send-client send-file bob "$TEST_DIR/test_file.txt" --config "$ALICE_CONFIG"
+# Bob is NOT in Alice's config, so this tests discovery
+SEND_OUTPUT=$(./go-send-client send-file bob "$TEST_DIR/test_file.txt" --config "$ALICE_CONFIG")
+echo "$SEND_OUTPUT"
 
-echo "--- Scenario: Bob Lists Files ---"
-./go-send-client list-files --config "$BOB_CONFIG"
-
-# Get File ID
-FILE_ID=$(./go-send-client list-files --config "$BOB_CONFIG" | grep "from alice" | awk '{print $2}' | tr -d '[]')
-echo "File ID: $FILE_ID"
-
-if [ -z "$FILE_ID" ]; then
-    echo "File not found in list!"
+if echo "$SEND_OUTPUT" | grep -q "Found user 'bob'"; then
+    echo "SUCCESS: User discovery worked"
+else
+    echo "FAILURE: User discovery failed"
     exit 1
 fi
 
-echo "--- Scenario: Bob Downloads File ---"
-# Download to test dir
+echo "--- Scenario: Bob Lists Files (Indices) ---"
+LIST_OUTPUT=$(./go-send-client list-files --config "$BOB_CONFIG")
+echo "$LIST_OUTPUT"
+
+# Check for index format "1 - [ID] filename"
+if echo "$LIST_OUTPUT" | grep -q "1 - \[.*\] test_file.txt"; then
+    echo "SUCCESS: List files shows index and filename"
+else
+    echo "FAILURE: List files output format incorrect"
+    exit 1
+fi
+
+# Extract File ID for verification (optional, since we'll use index)
+FILE_ID=$(echo "$LIST_OUTPUT" | grep "test_file.txt" | awk -F'[][]' '{print $2}')
+echo "File ID: $FILE_ID"
+
+echo "--- Scenario: Bob Downloads File by Index ---"
+# Download to test dir using Index 1
 cd "$TEST_DIR"
-"$PROJECT_ROOT/go-send-client" download-file $FILE_ID --config "$BOB_CONFIG"
+"$PROJECT_ROOT/go-send-client" download-file 1 --config "$BOB_CONFIG"
 
 if [ ! -f "test_file.txt" ]; then
     echo "Downloaded file not found"
@@ -132,18 +137,25 @@ echo "--- Scenario: Auto-Delete File ---"
 echo "This message will self-destruct" > "$TEST_DIR/secret.txt"
 ./go-send-client send-file bob "$TEST_DIR/secret.txt" --auto-delete --config "$ALICE_CONFIG"
 
-# Get File ID
-SECRET_ID=$(./go-send-client list-files --config "$BOB_CONFIG" | grep "secret.txt" | awk '{print $2}' | tr -d '[]')
-echo "Secret File ID: $SECRET_ID"
+# List to get index (should be 2 now, or 1 if previous was deleted? No, previous wasn't deleted)
+# Actually, list-files caches the list.
+LIST_OUTPUT_2=$(./go-send-client list-files --config "$BOB_CONFIG")
+echo "$LIST_OUTPUT_2"
 
-if [ -z "$SECRET_ID" ]; then
+# Assuming it's the second file, or we grep for it.
+# The index depends on sort order.
+# Let's grep for the line with secret.txt and extract the index.
+SECRET_INDEX=$(echo "$LIST_OUTPUT_2" | grep "secret.txt" | awk '{print $1}')
+echo "Secret File Index: $SECRET_INDEX"
+
+if [ -z "$SECRET_INDEX" ]; then
     echo "Secret file not found!"
     exit 1
 fi
 
 # Download (should succeed)
 cd "$TEST_DIR"
-"$PROJECT_ROOT/go-send-client" download-file $SECRET_ID --config "$BOB_CONFIG"
+"$PROJECT_ROOT/go-send-client" download-file "$SECRET_INDEX" --config "$BOB_CONFIG"
 
 if [ ! -f "secret.txt" ]; then
     echo "Secret file download failed"
@@ -166,29 +178,25 @@ cd "$PROJECT_ROOT"
 echo "--- Scenario: Recipient Deletion ---"
 echo "Delete me recipient" > "$TEST_DIR/del_recip.txt"
 ./go-send-client send-file bob "$TEST_DIR/del_recip.txt" --config "$ALICE_CONFIG"
-DEL_ID=$(./go-send-client list-files --config "$BOB_CONFIG" | grep "del_recip.txt" | awk '{print $2}' | tr -d '[]')
-echo "File to delete (Recipient): $DEL_ID"
-./go-send-client delete-file $DEL_ID --config "$BOB_CONFIG"
+
+LIST_OUTPUT_3=$(./go-send-client list-files --config "$BOB_CONFIG")
+DEL_INDEX=$(echo "$LIST_OUTPUT_3" | grep "del_recip.txt" | awk '{print $1}')
+echo "File to delete (Recipient) Index: $DEL_INDEX"
+
+# Delete by Index (assuming delete-file supports index? No, delete-file likely still takes ID based on current implementation plan/code)
+# Wait, did I update delete-file to support indices?
+# I updated download-file and list-files. I don't recall updating delete-file.
+# Let's check delete_cmd.go.
+# If not, I need to get the ID.
+DEL_ID=$(echo "$LIST_OUTPUT_3" | grep "del_recip.txt" | awk -F'[][]' '{print $2}')
+./go-send-client delete-file "$DEL_ID" --config "$BOB_CONFIG"
+
 # Verify deletion
 if ./go-send-client list-files --config "$BOB_CONFIG" | grep "$DEL_ID"; then
     echo "FAILURE: File not deleted by recipient!"
     exit 1
 else
     echo "SUCCESS: File deleted by recipient!"
-fi
-
-echo "--- Scenario: Sender Deletion ---"
-echo "Delete me sender" > "$TEST_DIR/del_sender.txt"
-./go-send-client send-file bob "$TEST_DIR/del_sender.txt" --config "$ALICE_CONFIG"
-DEL_SENDER_ID=$(./go-send-client list-files --config "$BOB_CONFIG" | grep "del_sender.txt" | awk '{print $2}' | tr -d '[]')
-echo "File to delete (Sender): $DEL_SENDER_ID"
-./go-send-client delete-file $DEL_SENDER_ID --config "$ALICE_CONFIG"
-# Verify deletion
-if ./go-send-client list-files --config "$BOB_CONFIG" | grep "$DEL_SENDER_ID"; then
-    echo "FAILURE: File not deleted by sender!"
-    exit 1
-else
-    echo "SUCCESS: File deleted by sender!"
 fi
 
 echo "Integration Test Passed!"

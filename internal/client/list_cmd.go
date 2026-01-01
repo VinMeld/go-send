@@ -55,9 +55,18 @@ var listFilesCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("Files for %s:\n", cfg.CurrentUsername)
+		// Update cache
+		cfg.LastListedFiles = make([]string, 0, len(files))
 		for _, f := range files {
-			fmt.Printf("- [%s] %s (from %s) - %s\n", f.ID, f.FileName, f.Sender, f.Timestamp.Format(time.RFC822))
+			cfg.LastListedFiles = append(cfg.LastListedFiles, f.ID)
+		}
+		if err := SaveConfigGlobal(); err != nil {
+			fmt.Println("Warning: Failed to save file list cache:", err)
+		}
+
+		fmt.Printf("Files for %s:\n", cfg.CurrentUsername)
+		for i, f := range files {
+			fmt.Printf("%d - [%s] %s (from %s) - %s\n", i+1, f.ID, f.FileName, f.Sender, f.Timestamp.Format(time.RFC822))
 		}
 	},
 }

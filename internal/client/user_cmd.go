@@ -67,11 +67,18 @@ var configInitCmd = &cobra.Command{
 			ExchangePublicKey: exKeys.Public[:],
 		}
 
+		if serverURL, _ := cmd.Flags().GetString("server"); serverURL != "" {
+			cfg.ServerURL = serverURL
+		}
+
 		if err := SaveConfigGlobal(); err != nil {
 			fmt.Println("Error saving config:", err)
 			return
 		}
 		fmt.Printf("Initialized user %s\n", username)
+		if cfg.ServerURL != "" {
+			fmt.Printf("Server URL: %s\n", cfg.ServerURL)
+		}
 		fmt.Printf("Identity Public Key: %s\n", base64.StdEncoding.EncodeToString(idKeys.Public))
 		fmt.Printf("Exchange Public Key: %s\n", base64.StdEncoding.EncodeToString(exKeys.Public[:]))
 	},
@@ -159,4 +166,5 @@ var removeUserCmd = &cobra.Command{
 
 func init() {
 	configInitCmd.Flags().String("user", "", "Username to initialize")
+	configInitCmd.Flags().String("server", "", "Server URL")
 }

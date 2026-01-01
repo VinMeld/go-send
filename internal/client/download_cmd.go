@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/VinMeld/go-send/internal/crypto"
 	"github.com/VinMeld/go-send/internal/models"
@@ -20,7 +21,21 @@ var downloadFileCmd = &cobra.Command{
 	Short: "Download and decrypt a file",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		fileID := args[0]
+		input := args[0]
+		var fileID string
+
+		// Check if input is an index
+		if index, err := strconv.Atoi(input); err == nil {
+			if index > 0 && index <= len(cfg.LastListedFiles) {
+				fileID = cfg.LastListedFiles[index-1]
+				fmt.Printf("Downloading file #%d: %s\n", index, fileID)
+			} else {
+				fmt.Printf("Index %d out of range (1-%d)\n", index, len(cfg.LastListedFiles))
+				return
+			}
+		} else {
+			fileID = input
+		}
 		if cfg.CurrentUsername == "" {
 			fmt.Println("No current user set. Use 'set-user'.")
 			return

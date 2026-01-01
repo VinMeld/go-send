@@ -22,7 +22,7 @@ func (h *Handler) HandleGetChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user exists
-	if _, ok := h.Storage.GetUser(username); !ok {
+	if _, ok := h.Storage.GetUser(r.Context(), username); !ok {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -35,7 +35,11 @@ func (h *Handler) HandleGetChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 	nonce := base64.StdEncoding.EncodeToString(nonceBytes)
 
-	h.Storage.CreateChallenge(username, nonce)
+	if err := h.Storage.CreateChallenge(r.Context(), username, nonce); err != nil {
+		slog.Error("failed to create challenge", "username", username, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	slog.Info("challenge created", "username", username)
 	_ = json.NewEncoder(w).Encode(models.AuthChallenge{
@@ -53,14 +57,14 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Retrieve challenge
-	expectedNonce, ok := h.Storage.GetChallenge(resp.Username)
+	expectedNonce, ok := h.Storage.GetChallenge(r.Context(), resp.Username)
 	if !ok || expectedNonce != resp.Nonce {
 		http.Error(w, "invalid or expired challenge", http.StatusUnauthorized)
 		return
 	}
 
 	// Get user's public identity key
-	user, ok := h.Storage.GetUser(resp.Username)
+	user, ok := h.Storage.GetUser(r.Context(), resp.Username)
 	if !ok {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
@@ -80,7 +84,11 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		Username:  resp.Username,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
-	h.Storage.CreateSession(session)
+	if err := h.Storage.CreateSession(r.Context(), session); err != nil {
+		slog.Error("failed to create session", "username", resp.Username, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	slog.Info("user logged in", "username", resp.Username)
 	_ = json.NewEncoder(w).Encode(session)

@@ -47,8 +47,36 @@ var sendFileCmd = &cobra.Command{
 		// Get Recipient Public Key
 		recipientUser, ok := cfg.Users[recipient]
 		if !ok {
-			fmt.Printf("Unknown user: %s. Add them with 'add-user' first.\n", recipient)
-			return
+			fmt.Printf("User '%s' not found locally. Searching on server...\n", recipient)
+			resp, err := http.Get(cfg.ServerURL + "/users?username=" + recipient)
+			if err != nil {
+				fmt.Printf("Error contacting server: %v\n", err)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode == http.StatusOK {
+				var foundUser models.User
+				if err := json.NewDecoder(resp.Body).Decode(&foundUser); err != nil {
+					fmt.Printf("Error decoding user from server: %v\n", err)
+					return
+				}
+				if len(foundUser.IdentityPublicKey) == 0 || len(foundUser.ExchangePublicKey) == 0 {
+					fmt.Println("Server returned invalid user keys.")
+					return
+				}
+
+				cfg.Users[recipient] = foundUser
+				if err := SaveConfigGlobal(); err != nil {
+					fmt.Printf("Warning: Failed to save user to local config: %v\n", err)
+				} else {
+					fmt.Printf("Found user '%s' and added to address book.\n", recipient)
+				}
+				recipientUser = foundUser
+			} else {
+				fmt.Printf("Unknown user: %s. Add them with 'add-user' first or ensure they are registered.\n", recipient)
+				return
+			}
 		}
 		var recipientPub [32]byte
 		copy(recipientPub[:], recipientUser.ExchangePublicKey)

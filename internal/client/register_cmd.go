@@ -28,7 +28,8 @@ var registerCmd = &cobra.Command{
 
 		// Get Keys
 		if _, ok := cfg.IdentityPrivateKeys[cfg.CurrentUsername]; !ok {
-			fmt.Println("Identity private key not found.")
+			fmt.Printf("Identity private key for user '%s' not found.\n", cfg.CurrentUsername)
+			fmt.Println("Please run 'go-send config init --user <username>' to generate keys.")
 			return
 		}
 		if _, ok := cfg.ExchangePrivateKeys[cfg.CurrentUsername]; !ok {

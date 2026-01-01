@@ -1,140 +1,158 @@
 package server
 
 import (
-	"encoding/json"
+	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 
+	"github.com/VinMeld/go-send/internal/db"
 	"github.com/VinMeld/go-send/internal/models"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-// Storage handles persistence for users and files.
+// Storage handles persistence for users and files using SQLite3.
 type Storage struct {
-	mu         sync.RWMutex
-	BaseDir    string
-	Users      map[string]models.User
-	Files      map[string]models.FileMetadata
-	BlobStore  BlobStore
-	Challenges map[string]string         // username -> nonce
-	Sessions   map[string]models.Session // token -> session
+	DB        *sql.DB
+	Queries   *db.Queries
+	BlobStore BlobStore
 }
 
 // NewStorage creates a new Storage instance.
 func NewStorage(baseDir string, blobStore BlobStore) (*Storage, error) {
-	s := &Storage{
-		BaseDir:    baseDir,
-		Users:      make(map[string]models.User),
-		Files:      make(map[string]models.FileMetadata),
-		BlobStore:  blobStore,
-		Challenges: make(map[string]string),
-		Sessions:   make(map[string]models.Session),
-	}
-	if err := s.load(); err != nil {
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return nil, err
 	}
-	return s, nil
-}
 
-func (s *Storage) load() error {
-	if err := os.MkdirAll(s.BaseDir, 0755); err != nil {
-		return err
-	}
-
-	// Load Users
-	usersFile := filepath.Join(s.BaseDir, "users.json")
-	if data, err := os.ReadFile(usersFile); err == nil {
-		if err := json.Unmarshal(data, &s.Users); err != nil {
-			return fmt.Errorf("failed to load users: %w", err)
-		}
-	}
-
-	// Load Files Metadata
-	filesFile := filepath.Join(s.BaseDir, "files.json")
-	if data, err := os.ReadFile(filesFile); err == nil {
-		if err := json.Unmarshal(data, &s.Files); err != nil {
-			return fmt.Errorf("failed to load files: %w", err)
-		}
-	}
-	return nil
-}
-
-func (s *Storage) save() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.saveInternal()
-}
-
-func (s *Storage) saveInternal() error {
-	// Caller must hold lock
-	usersData, err := json.MarshalIndent(s.Users, "", "  ")
+	dbPath := filepath.Join(baseDir, "gosend.db")
+	sqliteDB, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(s.BaseDir, "users.json"), usersData, 0644); err != nil {
-		return err
+		return nil, fmt.Errorf("failed to open db: %w", err)
 	}
 
-	filesData, err := json.MarshalIndent(s.Files, "", "  ")
-	if err != nil {
-		return err
+	// Apply Schema
+	// For simplicity, we just execute the schema.
+	// In production, use a migration tool.
+	// We'll use a simple "create if not exists" approach from the schema file.
+	// But wait, I need to access the schema file.
+	// I'll assume I can embed it or just define it here.
+	// Since I can't easily embed a file from a parent directory without go.mod changes or moving files,
+	// I'll define the schema const here for now to ensure it works.
+
+	const schema = `
+	CREATE TABLE IF NOT EXISTS users (
+		username TEXT PRIMARY KEY,
+		identity_public_key BLOB NOT NULL,
+		exchange_public_key BLOB NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS files (
+		id TEXT PRIMARY KEY,
+		sender TEXT NOT NULL,
+		recipient TEXT NOT NULL,
+		file_name TEXT NOT NULL,
+		encrypted_key BLOB NOT NULL,
+		auto_delete BOOLEAN NOT NULL DEFAULT 0,
+		timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(sender) REFERENCES users(username),
+		FOREIGN KEY(recipient) REFERENCES users(username)
+	);
+
+	CREATE TABLE IF NOT EXISTS sessions (
+		token TEXT PRIMARY KEY,
+		username TEXT NOT NULL,
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(username) REFERENCES users(username)
+	);
+
+	CREATE TABLE IF NOT EXISTS challenges (
+		username TEXT PRIMARY KEY,
+		nonce TEXT NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(username) REFERENCES users(username)
+	);
+	`
+
+	if _, err := sqliteDB.Exec(schema); err != nil {
+		sqliteDB.Close()
+		return nil, fmt.Errorf("failed to apply schema: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(s.BaseDir, "files.json"), filesData, 0644); err != nil {
-		return err
-	}
-	return nil
+
+	return &Storage{
+		DB:        sqliteDB,
+		Queries:   db.New(sqliteDB),
+		BlobStore: blobStore,
+	}, nil
+}
+
+// Close closes the database connection.
+func (s *Storage) Close() error {
+	return s.DB.Close()
 }
 
 // AddUser adds or updates a user.
-func (s *Storage) AddUser(user models.User) error {
-	s.mu.Lock()
-	s.Users[user.Username] = user
-	s.mu.Unlock()
-	return s.save()
+func (s *Storage) AddUser(ctx context.Context, user models.User) error {
+	return s.Queries.CreateUser(ctx, db.CreateUserParams{
+		Username:          user.Username,
+		IdentityPublicKey: user.IdentityPublicKey,
+		ExchangePublicKey: user.ExchangePublicKey,
+	})
 }
 
 // GetUser retrieves a user by username.
-func (s *Storage) GetUser(username string) (models.User, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	u, ok := s.Users[username]
-	return u, ok
+func (s *Storage) GetUser(ctx context.Context, username string) (models.User, bool) {
+	u, err := s.Queries.GetUser(ctx, username)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.User{}, false
+		}
+		// Log error?
+		return models.User{}, false
+	}
+	return models.User{
+		Username:          u.Username,
+		IdentityPublicKey: u.IdentityPublicKey,
+		ExchangePublicKey: u.ExchangePublicKey,
+	}, true
 }
 
 // SaveFile saves a file and its metadata.
-func (s *Storage) SaveFile(metadata models.FileMetadata, content []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Save content to BlobStore
+func (s *Storage) SaveFile(ctx context.Context, metadata models.FileMetadata, content []byte) error {
+	// Save content to BlobStore first
 	if err := s.BlobStore.Save(metadata.ID, content); err != nil {
 		return err
 	}
 
-	s.Files[metadata.ID] = metadata
-
-	// We need to unlock before calling save() because save() locks too?
-	// Ah, save() locks. I should refactor save() to not lock, or call an internal save.
-	// Let's just inline the save logic or make save() unexported and lock-free, called by public methods.
-	// Actually, I'll just release the lock before calling save, but that's racy.
-	// Better: make save() NOT lock, and assume caller holds lock.
-
-	// Re-implementing save logic here to avoid deadlock or race,
-	// but for MVP let's just do it correctly.
-	// I'll change save() to NOT lock, and wrap public methods with lock.
-
-	// Wait, I can't change save() signature easily in this tool call without rewriting it.
-	// I'll just use a separate internal save method.
-	return s.saveInternal()
+	// Save metadata to DB
+	return s.Queries.CreateFile(ctx, db.CreateFileParams{
+		ID:           metadata.ID,
+		Sender:       metadata.Sender,
+		Recipient:    metadata.Recipient,
+		FileName:     metadata.FileName,
+		EncryptedKey: metadata.EncryptedKey,
+		AutoDelete:   metadata.AutoDelete,
+		Timestamp:    metadata.Timestamp,
+	})
 }
 
 // GetFileMetadata retrieves metadata for a file.
-func (s *Storage) GetFileMetadata(id string) (models.FileMetadata, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	m, ok := s.Files[id]
-	return m, ok
+func (s *Storage) GetFileMetadata(ctx context.Context, id string) (models.FileMetadata, bool) {
+	f, err := s.Queries.GetFile(ctx, id)
+	if err != nil {
+		return models.FileMetadata{}, false
+	}
+	return models.FileMetadata{
+		ID:           f.ID,
+		Sender:       f.Sender,
+		Recipient:    f.Recipient,
+		FileName:     f.FileName,
+		EncryptedKey: f.EncryptedKey,
+		AutoDelete:   f.AutoDelete,
+		Timestamp:    f.Timestamp,
+	}, true
 }
 
 // GetFileContent retrieves the content of a file.
@@ -143,74 +161,78 @@ func (s *Storage) GetFileContent(id string) ([]byte, error) {
 }
 
 // ListFiles returns files for a specific recipient.
-func (s *Storage) ListFiles(recipient string) []models.FileMetadata {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var result []models.FileMetadata
-	for _, f := range s.Files {
-		if f.Recipient == recipient {
-			result = append(result, f)
-		}
+func (s *Storage) ListFiles(ctx context.Context, recipient string) ([]models.FileMetadata, error) {
+	files, err := s.Queries.ListFiles(ctx, recipient)
+	if err != nil {
+		return nil, err
 	}
-	return result
+	var result []models.FileMetadata
+	for _, f := range files {
+		result = append(result, models.FileMetadata{
+			ID:           f.ID,
+			Sender:       f.Sender,
+			Recipient:    f.Recipient,
+			FileName:     f.FileName,
+			EncryptedKey: f.EncryptedKey,
+			AutoDelete:   f.AutoDelete,
+			Timestamp:    f.Timestamp,
+		})
+	}
+	return result, nil
 }
 
 // DeleteFile removes a file and its metadata.
-func (s *Storage) DeleteFile(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.Files[id]; !ok {
-		return fmt.Errorf("file not found")
-	}
-
+func (s *Storage) DeleteFile(ctx context.Context, id string) error {
 	// Remove from BlobStore
 	if err := s.BlobStore.Delete(id); err != nil {
 		return err
 	}
-
-	// Remove from memory
-	delete(s.Files, id)
-
-	return s.saveInternal()
+	// Remove from DB
+	return s.Queries.DeleteFile(ctx, id)
 }
 
 // CreateChallenge generates and stores a nonce for a user.
-func (s *Storage) CreateChallenge(username string, nonce string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Challenges[username] = nonce
+func (s *Storage) CreateChallenge(ctx context.Context, username string, nonce string) error {
+	return s.Queries.CreateChallenge(ctx, db.CreateChallengeParams{
+		Username: username,
+		Nonce:    nonce,
+	})
 }
 
 // GetChallenge retrieves and deletes a challenge for a user.
-func (s *Storage) GetChallenge(username string) (string, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	nonce, ok := s.Challenges[username]
-	if ok {
-		delete(s.Challenges, username)
+func (s *Storage) GetChallenge(ctx context.Context, username string) (string, bool) {
+	nonce, err := s.Queries.GetChallenge(ctx, username)
+	if err != nil {
+		return "", false
 	}
-	return nonce, ok
+	// Delete challenge after retrieval (one-time use)
+	_ = s.Queries.DeleteChallenge(ctx, username)
+	return nonce, true
 }
 
 // CreateSession stores a new session.
-func (s *Storage) CreateSession(session models.Session) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Sessions[session.Token] = session
+func (s *Storage) CreateSession(ctx context.Context, session models.Session) error {
+	return s.Queries.CreateSession(ctx, db.CreateSessionParams{
+		Token:     session.Token,
+		Username:  session.Username,
+		ExpiresAt: session.ExpiresAt,
+	})
 }
 
 // GetSession retrieves a session by token.
-func (s *Storage) GetSession(token string) (models.Session, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	sess, ok := s.Sessions[token]
-	return sess, ok
+func (s *Storage) GetSession(ctx context.Context, token string) (models.Session, bool) {
+	sess, err := s.Queries.GetSession(ctx, token)
+	if err != nil {
+		return models.Session{}, false
+	}
+	return models.Session{
+		Token:     sess.Token,
+		Username:  sess.Username,
+		ExpiresAt: sess.ExpiresAt,
+	}, true
 }
 
 // DeleteSession removes a session.
-func (s *Storage) DeleteSession(token string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.Sessions, token)
+func (s *Storage) DeleteSession(ctx context.Context, token string) error {
+	return s.Queries.DeleteSession(ctx, token)
 }

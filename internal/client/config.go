@@ -16,6 +16,7 @@ type Config struct {
 	ExchangePrivateKeys map[string][]byte      `json:"exchange_private_keys"` // Map username -> X25519 private key
 	SessionTokens       map[string]string      `json:"session_tokens"`        // Map username -> session token
 	ServerURL           string                 `json:"server_url"`
+	LastListedFiles     []string               `json:"last_listed_files,omitempty"` // Cache for index-based access
 }
 
 func LoadConfig(path string) (*Config, error) {

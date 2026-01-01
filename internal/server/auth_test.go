@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +35,7 @@ func TestAuthHandlers(t *testing.T) {
 		IdentityPublicKey: idKey.Public,
 		ExchangePublicKey: exKey.Public[:],
 	}
-	if err := storage.AddUser(user); err != nil {
+	if err := storage.AddUser(context.Background(), user); err != nil {
 		t.Fatalf("Failed to add user: %v", err)
 	}
 
@@ -77,7 +78,7 @@ func TestAuthHandlers(t *testing.T) {
 	}
 
 	// Verify session in storage
-	storedSession, ok := storage.GetSession(session.Token)
+	storedSession, ok := storage.GetSession(context.Background(), session.Token)
 	if !ok {
 		t.Error("Session not stored")
 	}
@@ -141,7 +142,9 @@ func TestAuthMiddleware(t *testing.T) {
 		Username:  "alice",
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
-	storage.CreateSession(session)
+	if err := storage.CreateSession(context.Background(), session); err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
 
 	protectedHandler := handler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		user := r.Context().Value(userContextKey).(string)

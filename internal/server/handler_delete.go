@@ -20,7 +20,7 @@ func (h *Handler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meta, ok := h.Storage.GetFileMetadata(id)
+	meta, ok := h.Storage.GetFileMetadata(r.Context(), id)
 	if !ok {
 		http.Error(w, "file not found", http.StatusNotFound)
 		return
@@ -32,7 +32,7 @@ func (h *Handler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Storage.DeleteFile(id); err != nil {
+	if err := h.Storage.DeleteFile(r.Context(), id); err != nil {
 		slog.Error("failed to delete file", "id", id, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

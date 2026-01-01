@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/VinMeld/go-send/internal/models"
 )
@@ -26,27 +28,30 @@ func TestStorage(t *testing.T) {
 		IdentityPublicKey: []byte("id-key"),
 		ExchangePublicKey: []byte("ex-key"),
 	}
-	if err := s.AddUser(user); err != nil {
+	if err := s.AddUser(context.Background(), user); err != nil {
 		t.Errorf("AddUser failed: %v", err)
 	}
 
-	retrieved, ok := s.GetUser("alice")
+	retrieved, ok := s.GetUser(context.Background(), "alice")
 	if !ok || retrieved.Username != "alice" {
 		t.Error("GetUser failed")
 	}
 
 	// Test File Operations
 	meta := models.FileMetadata{
-		ID: "file1", Sender: "alice", Recipient: "bob", FileName: "test.txt",
+		ID: "file1", Sender: "alice", Recipient: "bob", FileName: "test.txt", EncryptedKey: []byte("key"),
 	}
 	content := []byte("hello world")
-	if err := s.SaveFile(meta, content); err != nil {
+	if err := s.SaveFile(context.Background(), meta, content); err != nil {
 		t.Errorf("SaveFile failed: %v", err)
 	}
 
-	files := s.ListFiles("bob")
+	files, err := s.ListFiles(context.Background(), "bob")
+	if err != nil {
+		t.Errorf("ListFiles failed: %v", err)
+	}
 	if len(files) != 1 || files[0].ID != "file1" {
-		t.Error("ListFiles failed")
+		t.Error("ListFiles returned wrong files")
 	}
 
 	retrievedContent, err := s.GetFileContent("file1")
@@ -54,11 +59,33 @@ func TestStorage(t *testing.T) {
 		t.Error("GetFileContent failed")
 	}
 
-	if err := s.DeleteFile("file1"); err != nil {
+	if err := s.DeleteFile(context.Background(), "file1"); err != nil {
 		t.Errorf("DeleteFile failed: %v", err)
 	}
-	if _, ok := s.GetFileMetadata("file1"); ok {
+	if _, ok := s.GetFileMetadata(context.Background(), "file1"); ok {
 		t.Error("File should be deleted")
+	}
+
+	// Test Session Operations
+	session := models.Session{
+		Token:     "token1",
+		Username:  "alice",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+	if err := s.CreateSession(context.Background(), session); err != nil {
+		t.Errorf("CreateSession failed: %v", err)
+	}
+
+	retrievedSess, ok := s.GetSession(context.Background(), "token1")
+	if !ok || retrievedSess.Username != "alice" {
+		t.Error("GetSession failed")
+	}
+
+	if err := s.DeleteSession(context.Background(), "token1"); err != nil {
+		t.Errorf("DeleteSession failed: %v", err)
+	}
+	if _, ok := s.GetSession(context.Background(), "token1"); ok {
+		t.Error("Session should be deleted")
 	}
 }
 
