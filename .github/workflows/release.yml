@@ -10,47 +10,27 @@ permissions:
 
 jobs:
   release:
-    name: Build and Release
+    name: Create Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-          check-latest: true
-          cache: true
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+      - name: Build Binaries
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/go-send-linux-amd64 cmd/client/main.go
+          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/go-send-linux-arm64 cmd/client/main.go
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            meldrum123454/go-send:latest
-            meldrum123454/go-send:${{ steps.version.outputs.VERSION }}
+          files: |
+            dist/go-send-linux-amd64
+            dist/go-send-linux-arm64
+          generate_release_notes: true
