@@ -23,8 +23,12 @@ type S3BlobStore struct {
 	Bucket string
 }
 
-func NewS3BlobStore(ctx context.Context, bucket string) (*S3BlobStore, error) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+func NewS3BlobStore(ctx context.Context, bucket string, region string) (*S3BlobStore, error) {
+	opts := []func(*config.LoadOptions) error{}
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}

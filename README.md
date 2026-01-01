@@ -1,12 +1,18 @@
 # go-send
 
-`go-send` is a secure, end-to-end encrypted file sharing application written in Go. It uses a Store-and-Forward architecture where an untrusted server acts as a temporary storage for encrypted files until the recipient is ready to download them.
+[![CI](https://github.com/VinMeld/go-send/actions/workflows/ci.yml/badge.svg)](https://github.com/VinMeld/go-send/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/VinMeld/go-send)](https://goreportcard.com/report/github.com/VinMeld/go-send)
+
+A simple, secure file-sharing application written in Go. It uses end-to-end encryption (E2EE) to ensure that only the intended recipient can decrypt and read the files.
 
 ## Features
-
-- **End-to-End Encryption**: Files are encrypted on the client side using NaCl Box (Curve25519, XSalsa20, Poly1305) before being uploaded. The server never sees the plaintext.
+- **End-to-End Encryption**: Files are encrypted on the client side using X25519 and XSalsa20-Poly1305.
+- **Ephemeral Keys**: A new symmetric key is generated for every file transfer.
+- **Auto-Delete**: Optional flag to delete files from the server immediately after download.
+- **S3 Support**: Can use AWS S3 for file storage.
+- **Structured Logging**: Server uses `log/slog` for machine-readable logs.
+- **CI/CD**: Automated testing and linting via GitHub Actions.
 - **Store-and-Forward**: Send files to users even when they are offline. The server stores the encrypted blob.
-- **Auto-Delete**: Optionally delete files from the server immediately after a successful download using the `--auto-delete` flag.
 - **Key Management**: Simple CLI for generating identity keys and managing a local address book of public keys.
 - **Client-Server Architecture**:
   - **Server**: HTTP backend for storing encrypted blobs and user metadata.

@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -22,30 +22,36 @@ type Server struct {
 func NewServer(port string, storageDir string) (*Server, error) {
 	// Load .env file (optional)
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using defaults/env vars")
+		slog.Info("No .env file found, using defaults/env vars")
 	}
 
-	// Initialize BlobStore
-	var blobStore BlobStore
 	storageType := os.Getenv("STORAGE_TYPE")
+	var store *Storage
+	var err error
 
 	if storageType == "s3" {
 		bucket := os.Getenv("AWS_BUCKET")
 		if bucket == "" {
 			return nil, fmt.Errorf("AWS_BUCKET required for s3 storage")
 		}
-		log.Printf("Using S3 Storage (Bucket: %s)", bucket)
-		var err error
-		blobStore, err = NewS3BlobStore(context.Background(), bucket)
+		slog.Info("Using S3 Storage", "bucket", bucket)
+		region := os.Getenv("AWS_REGION")
+		blobStore, err := NewS3BlobStore(context.Background(), bucket, region)
 		if err != nil {
-			return nil, fmt.Errorf("failed to init S3 storage: %w", err)
+			return nil, fmt.Errorf("failed to create S3 blob store: %w", err)
 		}
+		store, err = NewStorage(storageDir, blobStore)
 	} else {
-		log.Printf("Using Local Storage (Dir: %s)", storageDir)
-		blobStore = NewLocalBlobStore(storageDir)
+		if storageDir == "" {
+			storageDir = os.Getenv("DATA_DIR")
+		}
+		if storageDir == "" {
+			storageDir = "server_data"
+		}
+		slog.Info("Using Local Storage", "dir", storageDir)
+		blobStore := NewLocalBlobStore(storageDir)
+		store, err = NewStorage(storageDir, blobStore)
 	}
-
-	store, err := NewStorage(storageDir, blobStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init storage: %w", err)
 	}
@@ -107,6 +113,6 @@ func NewServer(port string, storageDir string) (*Server, error) {
 
 // Start starts the server.
 func (s *Server) Start() error {
-	log.Printf("Server listening on %s", s.Port)
+	slog.Info("Server starting", "addr", s.Server.Addr)
 	return s.Server.ListenAndServe()
 }

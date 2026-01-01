@@ -53,11 +53,15 @@ func TestS3BlobStore(t *testing.T) {
 		Bucket: "test-bucket",
 	}
 
+	// Test NewS3BlobStore (will fail in test due to real AWS config call, but we can test the struct directly)
+	// Or we just skip the real constructor test and test the methods.
+
 	id := "file1"
 	content := []byte("content")
 
 	// Test Save
-	if err := store.Save(id, content); err != nil {
+	err := store.Save(id, content)
+	if err != nil {
 		t.Errorf("Save failed: %v", err)
 	}
 	if string(mockClient.Objects[id]) != string(content) {

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,6 +26,7 @@ func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		slog.Error("failed to decode user", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -34,9 +36,11 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.Storage.AddUser(user); err != nil {
+		slog.Error("failed to add user", "username", user.Username, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	slog.Info("user registered", "username", user.Username)
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -63,6 +67,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	var req models.UploadRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("failed to decode upload request", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -78,9 +83,11 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	req.Metadata.Timestamp = time.Now()
 
 	if err := h.Storage.SaveFile(req.Metadata, req.EncryptedContent); err != nil {
+		slog.Error("failed to save file", "sender", req.Metadata.Sender, "recipient", req.Metadata.Recipient, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	slog.Info("file uploaded", "id", req.Metadata.ID, "sender", req.Metadata.Sender, "recipient", req.Metadata.Recipient)
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(req.Metadata)
@@ -115,9 +122,11 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 
 	content, err := h.Storage.GetFileContent(id)
 	if err != nil {
+		slog.Error("failed to get file content", "id", id, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	slog.Info("file downloaded", "id", id, "recipient", meta.Recipient)
 
 	resp := models.UploadRequest{
 		Metadata:         meta,
