@@ -119,6 +119,23 @@ func (s *Storage) GetUser(ctx context.Context, username string) (models.User, bo
 	}, true
 }
 
+// ListAllUsers returns all registered users.
+func (s *Storage) ListAllUsers(ctx context.Context) ([]models.User, error) {
+	users, err := s.Queries.ListAllUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var result []models.User
+	for _, u := range users {
+		result = append(result, models.User{
+			Username:          u.Username,
+			IdentityPublicKey: u.IdentityPublicKey,
+			ExchangePublicKey: u.ExchangePublicKey,
+		})
+	}
+	return result, nil
+}
+
 // SaveFile saves a file and its metadata.
 func (s *Storage) SaveFile(ctx context.Context, metadata models.FileMetadata, content []byte) error {
 	// Save content to BlobStore first

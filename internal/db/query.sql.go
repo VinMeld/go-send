@@ -182,6 +182,41 @@ func (q *Queries) GetUser(ctx context.Context, username string) (User, error) {
 	return i, err
 }
 
+const listAllUsers = `-- name: ListAllUsers :many
+SELECT username, identity_public_key, exchange_public_key
+FROM users
+ORDER BY username
+`
+
+type ListAllUsersRow struct {
+	Username          string `json:"username"`
+	IdentityPublicKey []byte `json:"identity_public_key"`
+	ExchangePublicKey []byte `json:"exchange_public_key"`
+}
+
+func (q *Queries) ListAllUsers(ctx context.Context) ([]ListAllUsersRow, error) {
+	rows, err := q.query(ctx, q.listAllUsersStmt, listAllUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllUsersRow
+	for rows.Next() {
+		var i ListAllUsersRow
+		if err := rows.Scan(&i.Username, &i.IdentityPublicKey, &i.ExchangePublicKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFiles = `-- name: ListFiles :many
 SELECT id, sender, recipient, file_name, encrypted_key, auto_delete, timestamp FROM files
 WHERE recipient = ?

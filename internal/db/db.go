@@ -57,6 +57,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getUserStmt, err = db.PrepareContext(ctx, getUser); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUser: %w", err)
 	}
+	if q.listAllUsersStmt, err = db.PrepareContext(ctx, listAllUsers); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAllUsers: %w", err)
+	}
 	if q.listFilesStmt, err = db.PrepareContext(ctx, listFiles); err != nil {
 		return nil, fmt.Errorf("error preparing query ListFiles: %w", err)
 	}
@@ -120,6 +123,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getUserStmt: %w", cerr)
 		}
 	}
+	if q.listAllUsersStmt != nil {
+		if cerr := q.listAllUsersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAllUsersStmt: %w", cerr)
+		}
+	}
 	if q.listFilesStmt != nil {
 		if cerr := q.listFilesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listFilesStmt: %w", cerr)
@@ -175,6 +183,7 @@ type Queries struct {
 	getFileStmt         *sql.Stmt
 	getSessionStmt      *sql.Stmt
 	getUserStmt         *sql.Stmt
+	listAllUsersStmt    *sql.Stmt
 	listFilesStmt       *sql.Stmt
 }
 
@@ -193,6 +202,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getFileStmt:         q.getFileStmt,
 		getSessionStmt:      q.getSessionStmt,
 		getUserStmt:         q.getUserStmt,
+		listAllUsersStmt:    q.listAllUsersStmt,
 		listFilesStmt:       q.listFilesStmt,
 	}
 }

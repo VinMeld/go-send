@@ -2,7 +2,9 @@ package client
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/VinMeld/go-send/internal/crypto"
 	"github.com/VinMeld/go-send/internal/models"
@@ -11,6 +13,7 @@ import (
 
 func init() {
 	rootCmd.AddCommand(configInitCmd)
+	rootCmd.AddCommand(configPathCmd)
 	rootCmd.AddCommand(setUserCmd)
 	rootCmd.AddCommand(setServerCmd)
 	rootCmd.AddCommand(addUserCmd)
@@ -84,6 +87,14 @@ var configInitCmd = &cobra.Command{
 	},
 }
 
+var configPathCmd = &cobra.Command{
+	Use:   "config path",
+	Short: "Show configuration file path",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println(cfgFile)
+	},
+}
+
 var setUserCmd = &cobra.Command{
 	Use:   "set-user <username>",
 	Short: "Set current active user",
@@ -138,13 +149,38 @@ var addUserCmd = &cobra.Command{
 
 var listUsersCmd = &cobra.Command{
 	Use:   "list-users",
-	Short: "List known users",
+	Short: "List known users (local and server)",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Known Users:")
+		fmt.Println("Local Users:")
 		for _, u := range cfg.Users {
 			fmt.Printf("- %s\n", u.Username)
-			fmt.Printf("  Identity: %s\n", base64.StdEncoding.EncodeToString(u.IdentityPublicKey))
-			fmt.Printf("  Exchange: %s\n", base64.StdEncoding.EncodeToString(u.ExchangePublicKey))
+		}
+
+		if cfg.ServerURL != "" {
+			fmt.Printf("\nServer Users (%s):\n", cfg.ServerURL)
+			resp, err := http.Get(cfg.ServerURL + "/users")
+			if err != nil {
+				fmt.Printf("Error fetching users from server: %v\n", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				fmt.Printf("Server returned status: %d\n", resp.StatusCode)
+				return
+			}
+
+			var users []models.User
+			if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+				fmt.Printf("Error decoding server response: %v\n", err)
+				return
+			}
+
+			for _, u := range users {
+				fmt.Printf("- %s\n", u.Username)
+				fmt.Printf("  Identity: %s\n", base64.StdEncoding.EncodeToString(u.IdentityPublicKey))
+				fmt.Printf("  Exchange: %s\n", base64.StdEncoding.EncodeToString(u.ExchangePublicKey))
+			}
 		}
 	},
 }

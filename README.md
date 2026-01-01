@@ -79,14 +79,14 @@ To use S3 storage:
 
 **Initialize Alice:**
 ```bash
-go run cmd/client/main.go config init --user alice --config alice.json
+go run cmd/client/main.go config init --user alice --server http://localhost:9090 --config alice.json
 # Output: Public Key: <ALICE_PUB_KEY>
 ```
 
-**Configure Server (Optional):**
-If the server is not on localhost:8080, set the URL:
+**Initialize Bob:**
 ```bash
-go run cmd/client/main.go set-server http://localhost:9090 --config alice.json
+go run cmd/client/main.go config init --user bob --server http://localhost:9090 --config bob.json
+# Output: Public Key: <BOB_PUB_KEY>
 ```
 
 **Check Connection:**
@@ -95,29 +95,28 @@ go run cmd/client/main.go ping --config alice.json
 # Output: Pong! Server is reachable
 ```
 
-**Initialize Bob:**
-```bash
-go run cmd/client/main.go config init --user bob --config bob.json
-# Output: Public Key: <BOB_PUB_KEY>
-```
-
 **Register with Server (If Token Required):**
 ```bash
 go run cmd/client/main.go register --token secret123 --config alice.json
+go run cmd/client/main.go register --token secret123 --config bob.json
 ```
 
-### 3. Exchange Keys
-Alice needs Bob's public key to send him a file.
+**Login:**
+```bash
+go run cmd/client/main.go login --config alice.json
+go run cmd/client/main.go login --config bob.json
+```
+
+### 3. User Discovery & Listing
+You can list users known to the server. This is helpful to find usernames.
 
 ```bash
-# Alice adds Bob
-go run cmd/client/main.go add-user bob <BOB_PUB_KEY> --config alice.json
+go run cmd/client/main.go list-users --config alice.json
 ```
 
 ### 4. Send a File
-Alice sends a file to Bob.
+Alice sends a file to Bob. If Bob is not in Alice's local address book, the client will automatically fetch Bob's keys from the server (User Discovery).
 
-```bash
 ```bash
 echo "Top Secret" > secret.txt
 go run cmd/client/main.go send-file bob secret.txt --config alice.json
@@ -127,13 +126,17 @@ go run cmd/client/main.go send-file bob secret.txt --auto-delete --config alice.
 ```
 
 ### 5. Receive a File
-Bob checks for files and downloads them.
+Bob lists his files and downloads them.
 
 ```bash
-# List files
+# List files (shows Index and ID)
 go run cmd/client/main.go list-files --config bob.json
+# Output:
+# 1 - [FILE_ID] secret.txt (from alice) - <TIMESTAMP>
 
-# Download and Decrypt
+# Download and Decrypt using Index
+go run cmd/client/main.go download-file 1 --config bob.json
+# Or using ID
 go run cmd/client/main.go download-file <FILE_ID> --config bob.json
 ```
 
@@ -142,6 +145,12 @@ Both the sender and recipient can delete a file from the server.
 
 ```bash
 go run cmd/client/main.go delete-file <FILE_ID> --config alice.json
+```
+
+### 7. Configuration Management
+View the path of the current configuration file:
+```bash
+go run cmd/client/main.go config path
 ```
 
 The decrypted file will be saved with its original filename.

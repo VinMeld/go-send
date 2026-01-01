@@ -20,6 +20,7 @@ type Querier interface {
 	GetFile(ctx context.Context, id string) (File, error)
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetUser(ctx context.Context, username string) (User, error)
+	ListAllUsers(ctx context.Context) ([]ListAllUsersRow, error)
 	ListFiles(ctx context.Context, recipient string) ([]File, error)
 }
 

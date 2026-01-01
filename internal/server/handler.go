@@ -70,7 +70,14 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")
 	if username == "" {
-		http.Error(w, "username required", http.StatusBadRequest)
+		// List all users
+		users, err := h.Storage.ListAllUsers(r.Context())
+		if err != nil {
+			slog.Error("failed to list users", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(users)
 		return
 	}
 
