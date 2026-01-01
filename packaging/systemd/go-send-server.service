@@ -1,0 +1,15 @@
+[Unit]
+Description=Go-Send Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/go-send-server
+Restart=on-failure
+Environment=PORT=8080
+Environment=STORAGE_DIR=/var/lib/go-send
+# Environment=REGISTRATION_TOKEN=your_token_here
+
+[Install]
+WantedBy=multi-user.target

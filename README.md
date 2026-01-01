@@ -66,6 +66,8 @@ PORT=:9090
 STORAGE_TYPE=s3 # Options: local (default), s3
 AWS_BUCKET=my-bucket
 AWS_REGION=us-east-1
+# Optional: Restrict registration
+REGISTRATION_TOKEN=secret123
 ```
 
 To use S3 storage:
@@ -99,6 +101,11 @@ go run cmd/client/main.go config init --user bob --config bob.json
 # Output: Public Key: <BOB_PUB_KEY>
 ```
 
+**Register with Server (If Token Required):**
+```bash
+go run cmd/client/main.go register --token secret123 --config alice.json
+```
+
 ### 3. Exchange Keys
 Alice needs Bob's public key to send him a file.
 
@@ -128,6 +135,13 @@ go run cmd/client/main.go list-files --config bob.json
 
 # Download and Decrypt
 go run cmd/client/main.go download-file <FILE_ID> --config bob.json
+```
+
+### 6. Delete a File
+Both the sender and recipient can delete a file from the server.
+
+```bash
+go run cmd/client/main.go delete-file <FILE_ID> --config alice.json
 ```
 
 The decrypted file will be saved with its original filename.

@@ -11,6 +11,8 @@ services:
       - PORT=8080
       - STORAGE_TYPE=local
       - DATA_DIR=/data
+      # Optional: Restrict registration with a token
+      # - REGISTRATION_TOKEN=your-secret-token
     volumes:
       - go-send-data:/data
     restart: unless-stopped
