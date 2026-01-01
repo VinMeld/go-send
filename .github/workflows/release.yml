@@ -207,7 +207,9 @@ jobs:
             useradd -m builder
             chown -R builder:builder /pkg
             cd /pkg
-            su builder -c 'makepkg --printsrcinfo > .SRCINFO'
+            # Fix git config permissions
+            git config --global --add safe.directory /pkg
+            su builder -c 'git config --global --add safe.directory /pkg && makepkg --printsrcinfo > .SRCINFO'
           "
           
           # Commit and push
