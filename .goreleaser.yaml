@@ -105,3 +105,9 @@ aurs:
       - go-send-git
     provides:
       - go-send
+    package: |-
+      # bin
+      install -Dm755 "./go-send" "${pkgdir}/usr/bin/go-send"
+
+      # license
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/go-send/LICENSE"
