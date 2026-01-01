@@ -192,7 +192,7 @@ jobs:
           sed -i "s/sha256sums_aarch64=.*/sha256sums_aarch64=('$ARM64_SHA')/" PKGBUILD
 
       - name: Publish to AUR
-        uses: TheWisker/aur-update@v2.0.1
+        uses: TheWisker/aur-update@master
         with:
           aur_key: ${{ secrets.AUR_SSH_KEY }}
           aur_folder: packaging/aur
