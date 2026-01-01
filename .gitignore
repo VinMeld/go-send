@@ -9,3 +9,5 @@ tests/integration/test_data_*
 
 # OS specific
 .DS_Store
+# Added by goreleaser init:
+dist/
