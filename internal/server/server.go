@@ -36,9 +36,9 @@ func NewServer(port string, storageDir string) (*Server, error) {
 		}
 		slog.Info("Using S3 Storage", "bucket", bucket)
 		region := os.Getenv("AWS_REGION")
-		blobStore, err := NewS3BlobStore(context.Background(), bucket, region)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create S3 blob store: %w", err)
+		blobStore, blobErr := NewS3BlobStore(context.Background(), bucket, region)
+		if blobErr != nil {
+			return nil, fmt.Errorf("failed to create S3 blob store: %w", blobErr)
 		}
 		store, err = NewStorage(storageDir, blobStore)
 	} else {

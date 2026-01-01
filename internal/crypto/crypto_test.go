@@ -10,11 +10,8 @@ func TestGenerateKeyPair(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateKeyPair failed: %v", err)
 	}
-	if len(kp.Public) != 32 {
-		t.Errorf("Expected public key length 32, got %d", len(kp.Public))
-	}
-	if len(kp.Private) != 32 {
-		t.Errorf("Expected private key length 32, got %d", len(kp.Private))
+	if len(kp.Public) != 32 || len(kp.Private) != 32 {
+		t.Error("Key lengths should be 32 bytes")
 	}
 }
 

@@ -55,9 +55,9 @@ func Decrypt(encrypted []byte, senderPub *[32]byte, recipientPriv *[32]byte) ([]
 
 // GenerateSymmetricKey generates a random 32-byte key.
 func GenerateSymmetricKey() ([]byte, error) {
-    key := make([]byte, 32)
-    if _, err := io.ReadFull(rand.Reader, key); err != nil {
-        return nil, err
-    }
-    return key, nil
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		return nil, err
+	}
+	return key, nil
 }

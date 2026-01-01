@@ -19,7 +19,7 @@ func (m *MockS3Client) PutObject(ctx context.Context, params *s3.PutObjectInput,
 		m.Objects = make(map[string][]byte)
 	}
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(params.Body)
+	_, _ = buf.ReadFrom(params.Body)
 	m.Objects[*params.Key] = buf.Bytes()
 	return &s3.PutObjectOutput{}, nil
 }

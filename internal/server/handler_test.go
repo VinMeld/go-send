@@ -28,7 +28,7 @@ func setupTestServer(t *testing.T) (*Handler, *Storage, string) {
 
 func TestPingHandler(t *testing.T) {
 	h, _, tmpDir := setupTestServer(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	req := httptest.NewRequest("GET", "/ping", nil)
 	w := httptest.NewRecorder()
@@ -45,7 +45,7 @@ func TestPingHandler(t *testing.T) {
 
 func TestRegisterUserHandler(t *testing.T) {
 	h, _, tmpDir := setupTestServer(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	user := models.User{Username: "alice", PublicKey: []byte("key")}
 	data, _ := json.Marshal(user)
@@ -70,7 +70,7 @@ func TestRegisterUserHandler(t *testing.T) {
 
 func TestHandlerErrors(t *testing.T) {
 	h, _, tmpDir := setupTestServer(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Test Register User - Bad Method
 	req := httptest.NewRequest("GET", "/users", nil)
@@ -118,11 +118,11 @@ func TestHandlerErrors(t *testing.T) {
 
 func TestUploadListFiles(t *testing.T) {
 	h, store, tmpDir := setupTestServer(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Register User
 	user := models.User{Username: "bob", PublicKey: []byte("key")}
-	store.AddUser(user)
+	_ = store.AddUser(user)
 
 	// Upload File
 	meta := models.FileMetadata{
@@ -151,7 +151,7 @@ func TestUploadListFiles(t *testing.T) {
 	}
 
 	var files []models.FileMetadata
-	json.NewDecoder(w.Body).Decode(&files)
+	_ = json.NewDecoder(w.Body).Decode(&files)
 	if len(files) != 1 {
 		t.Errorf("Expected 1 file, got %d", len(files))
 	}
@@ -171,11 +171,11 @@ func TestUploadListFiles(t *testing.T) {
 
 func TestAutoDelete(t *testing.T) {
 	h, store, tmpDir := setupTestServer(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Register User
 	user := models.User{Username: "bob", PublicKey: []byte("key")}
-	store.AddUser(user)
+	_ = store.AddUser(user)
 
 	// Upload File with AutoDelete
 	meta := models.FileMetadata{
@@ -203,7 +203,7 @@ func TestAutoDelete(t *testing.T) {
 	h.ListFiles(w, req)
 
 	var files []models.FileMetadata
-	json.NewDecoder(w.Body).Decode(&files)
+	_ = json.NewDecoder(w.Body).Decode(&files)
 	if len(files) != 1 {
 		t.Fatalf("Expected 1 file, got %d", len(files))
 	}

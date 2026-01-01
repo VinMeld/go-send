@@ -20,7 +20,7 @@ func NewHandler(storage *Storage) *Handler {
 
 func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("pong"))
+	_, _ = w.Write([]byte("pong"))
 }
 
 func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +61,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(user)
+	_ = json.NewEncoder(w).Encode(user)
 }
 
 func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +90,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	slog.Info("file uploaded", "id", req.Metadata.ID, "sender", req.Metadata.Sender, "recipient", req.Metadata.Recipient)
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(req.Metadata)
+	_ = json.NewEncoder(w).Encode(req.Metadata)
 }
 
 func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +101,7 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	files := h.Storage.ListFiles(recipient)
-	json.NewEncoder(w).Encode(files)
+	_ = json.NewEncoder(w).Encode(files)
 }
 
 func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +140,6 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 
 	// Auto-delete after successful download if requested
 	if meta.AutoDelete {
-		h.Storage.DeleteFile(id)
+		_ = h.Storage.DeleteFile(id)
 	}
 }

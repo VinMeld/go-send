@@ -15,7 +15,7 @@ func TestStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	blobStore := NewLocalBlobStore(tmpDir)
 	store, err := NewStorage(tmpDir, blobStore)
@@ -96,7 +96,7 @@ func TestStorageErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	blobStore := NewLocalBlobStore(tmpDir)
 	store, err := NewStorage(tmpDir, blobStore)
@@ -105,14 +105,14 @@ func TestStorageErrors(t *testing.T) {
 	}
 
 	// Test Load Corrupted Users
-	os.WriteFile(filepath.Join(tmpDir, "users.json"), []byte("bad json"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "users.json"), []byte("bad json"), 0644)
 	if err := store.load(); err == nil {
 		t.Error("Expected error loading corrupted users")
 	}
 
 	// Test Load Corrupted Files
-	os.WriteFile(filepath.Join(tmpDir, "users.json"), []byte("{}"), 0644) // Fix users
-	os.WriteFile(filepath.Join(tmpDir, "files.json"), []byte("bad json"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "users.json"), []byte("{}"), 0644) // Fix users
+	_ = os.WriteFile(filepath.Join(tmpDir, "files.json"), []byte("bad json"), 0644)
 	if err := store.load(); err == nil {
 		t.Error("Expected error loading corrupted files")
 	}

@@ -28,7 +28,7 @@ var listFilesCmd = &cobra.Command{
 			fmt.Println("Error fetching files:", err)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			fmt.Println("Server returned error:", resp.Status)

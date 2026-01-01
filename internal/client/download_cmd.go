@@ -32,7 +32,7 @@ var downloadFileCmd = &cobra.Command{
 			fmt.Println("Error fetching file:", err)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			fmt.Println("Server returned error:", resp.Status)

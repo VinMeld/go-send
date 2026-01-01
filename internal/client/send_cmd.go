@@ -146,7 +146,7 @@ var sendFileCmd = &cobra.Command{
 			fmt.Println("Error uploading file:", err)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusCreated {
 			body, _ := io.ReadAll(resp.Body)

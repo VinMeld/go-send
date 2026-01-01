@@ -17,7 +17,7 @@ func TestTransferCommands(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/ping" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("pong"))
+			_, _ = w.Write([]byte("pong"))
 			return
 		}
 		if r.URL.Path == "/files" {
@@ -29,7 +29,7 @@ func TestTransferCommands(t *testing.T) {
 				files := []models.FileMetadata{
 					{ID: "file1", FileName: "test.txt", Sender: "alice", Recipient: "bob", Timestamp: time.Now()},
 				}
-				json.NewEncoder(w).Encode(files)
+				_ = json.NewEncoder(w).Encode(files)
 				return
 			}
 		}
@@ -41,7 +41,7 @@ func TestTransferCommands(t *testing.T) {
 				Metadata:         models.FileMetadata{ID: "file1", FileName: "test.txt", EncryptedKey: []byte("key")},
 				EncryptedContent: []byte("encrypted_content"),
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -62,7 +62,7 @@ func TestTransferCommands(t *testing.T) {
 
 	// Test Send File
 	tmpFile := filepath.Join(filepath.Dir(configPath), "test.txt")
-	os.WriteFile(tmpFile, []byte("content"), 0644)
+	_ = os.WriteFile(tmpFile, []byte("content"), 0644)
 
 	sendFileCmd.Run(sendFileCmd, []string{"bob", tmpFile})
 
@@ -90,7 +90,7 @@ func TestTransferErrors(t *testing.T) {
 
 	// Test Send File Error
 	tmpFile := filepath.Join(filepath.Dir(configPath), "test.txt")
-	os.WriteFile(tmpFile, []byte("content"), 0644)
+	_ = os.WriteFile(tmpFile, []byte("content"), 0644)
 
 	// Should print error but not panic
 	sendFileCmd.Run(sendFileCmd, []string{"bob", tmpFile})
@@ -127,7 +127,7 @@ func TestDownloadFile(t *testing.T) {
 					},
 					EncryptedContent: []byte("encrypted"),
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 				return
 			}
 			w.WriteHeader(http.StatusNotFound)
@@ -139,7 +139,7 @@ func TestDownloadFile(t *testing.T) {
 	configPath, cleanup := setupTestConfig(t)
 	defer cleanup()
 	// Ensure temp dir exists for file creation
-	os.MkdirAll(filepath.Dir(configPath), 0755)
+	_ = os.MkdirAll(filepath.Dir(configPath), 0755)
 	cfg.ServerURL = server.URL
 	cfg.CurrentUsername = "alice"
 	cfg.PrivateKeys["alice"] = make([]byte, 32)

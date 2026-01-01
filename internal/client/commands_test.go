@@ -23,7 +23,7 @@ func setupTestConfig(t *testing.T) (string, func()) {
 	cfgFile = configPath // Set global cfgFile
 
 	return configPath, func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		cfg = nil
 		cfgFile = ""
 	}
@@ -34,7 +34,7 @@ func TestInitCmd(t *testing.T) {
 	defer cleanup()
 
 	// configInitCmd is the variable name
-	configInitCmd.Flags().Set("user", "alice")
+	_ = configInitCmd.Flags().Set("user", "alice")
 
 	// Execute Run
 	configInitCmd.Run(configInitCmd, []string{})

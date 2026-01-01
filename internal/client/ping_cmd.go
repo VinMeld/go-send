@@ -29,7 +29,7 @@ var pingCmd = &cobra.Command{
 			fmt.Printf("Failed to ping server: %v\n", err)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		duration := time.Since(start)
 
 		if resp.StatusCode == http.StatusOK {
