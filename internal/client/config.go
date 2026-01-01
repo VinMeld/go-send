@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 
 	"github.com/VinMeld/go-send/internal/models"
+	"github.com/VinMeld/go-send/internal/transport"
 )
 
 type Config struct {
 	CurrentUsername string                 `json:"current_username"`
-	Users           map[string]models.User `json:"users"`      // Known users (address book)
+	Users           map[string]models.User `json:"users"`        // Known users (address book)
 	PrivateKeys     map[string][]byte      `json:"private_keys"` // Map username -> private key (raw bytes)
 	ServerURL       string                 `json:"server_url"`
 }
@@ -22,7 +23,7 @@ func LoadConfig(path string) (*Config, error) {
 			return &Config{
 				Users:       make(map[string]models.User),
 				PrivateKeys: make(map[string][]byte),
-				ServerURL:   "http://localhost:8080",
+				ServerURL:   transport.DefaultServerURL,
 			}, nil
 		}
 		return nil, err
