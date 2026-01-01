@@ -166,4 +166,5 @@ jobs:
         uses: TheWisker/aur-update@v1
         with:
           aur_key: ${{ secrets.AUR_SSH_KEY }}
-          
+          username: VinMeld
+          email: github-actions-bot@noreply.com
