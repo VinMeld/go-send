@@ -138,3 +138,8 @@ The decrypted file will be saved with its original filename.
 - **`internal/server/storage.go`**: Simple JSON-based file persistence for the server (MVP).
 - **`internal/client/send_cmd.go`**: Logic for generating ephemeral keys, encrypting files, and uploading.
 - **`internal/client/download_cmd.go`**: Logic for downloading and decrypting using the recipient's private key.
+- **`internal/server/handler.go`**: HTTP handlers for file and user management.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.

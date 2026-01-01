@@ -56,6 +56,25 @@ archives:
 checksum:
   name_template: 'checksums.txt'
 
+nfpms:
+  - id: client
+    package_name: go-send
+    builds:
+      - client
+    contents:
+      - src: ./go-send
+        dst: /usr/bin/go-send
+    formats:
+      - deb
+      - rpm
+      - apk
+      - archlinux
+    vendor: VinMeld
+    homepage: https://github.com/VinMeld/go-send
+    maintainer: VinMeld <vinmeld@example.com>
+    description: Secure file sharing with end-to-end encryption.
+    license: GPL-3.0
+
 changelog:
   sort: asc
   filters:
