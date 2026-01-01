@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  server:
+    image: meldrum123454/go-send:latest
+    # Or build locally:
+    # build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - STORAGE_TYPE=local
+      - DATA_DIR=/data
+    volumes:
+      - go-send-data:/data
+    restart: unless-stopped
+
+volumes:
+  go-send-data:
