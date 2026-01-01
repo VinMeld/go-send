@@ -201,13 +201,12 @@ jobs:
           sed -i "s/sha256sums_x86_64=.*/sha256sums_x86_64=('$AMD64_SHA')/" PKGBUILD
           sed -i "s/sha256sums_aarch64=.*/sha256sums_aarch64=('$ARM64_SHA')/" PKGBUILD
           
-          # Generate .SRCINFO using Docker
+          # Generate .SRCINFO using Docker (ignore git config warnings)
           docker run --rm -v "$PWD:/pkg" archlinux:latest bash -c "
-            pacman -Syu --noconfirm base-devel git
+            pacman -Syu --noconfirm base-devel git 2>&1 | grep -v 'could not lock config' || true
             useradd -m builder
-            # Change ownership FIRST, then configure git
             chown -R builder:builder /pkg
-            su builder -c 'cd /pkg && git config --global --add safe.directory /pkg && makepkg --printsrcinfo > .SRCINFO'
+            su builder -c 'cd /pkg && makepkg --printsrcinfo > .SRCINFO'
           "
           
           # Commit and push
