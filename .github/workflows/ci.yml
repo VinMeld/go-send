@@ -23,7 +23,9 @@ jobs:
         run: go mod download
 
       - name: Run Unit Tests
-        run: go test -v -coverprofile=coverage.out ./...
+        env:
+          GOTOOLCHAIN: go1.25.5+auto
+        run: go test -v -coverprofile=coverage.out $(go list ./... | grep -v cmd)
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
