@@ -1,0 +1,11 @@
+# Binaries
+go-send-client
+go-send-server
+
+# Test Artifacts
+coverage.out
+test_data_*
+tests/integration/test_data_*
+
+# OS specific
+.DS_Store
